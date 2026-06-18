@@ -1,0 +1,8 @@
+services:
+  agentic-qa:
+    build: .
+    command: python -m agentic_qa_lab.cli info
+    env_file:
+      - .env
+    volumes:
+      - ./artifacts:/app/artifacts

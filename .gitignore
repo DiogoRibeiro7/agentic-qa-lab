@@ -1,0 +1,61 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.nox/
+.tox/
+
+# Test / coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+auxiliar/
+
+# Runtime files
+*.log
+*.pid
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Data and experiment outputs
+data/raw/
+data/interim/
+data/processed/
+models/
+artifacts/
+mlruns/
+
+# Optional local databases
+*.db
+*.sqlite
+*.sqlite3
