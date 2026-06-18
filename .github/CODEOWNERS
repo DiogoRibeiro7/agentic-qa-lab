@@ -1,0 +1,23 @@
+# Default owner for all files
+
+* @DiogoRibeiro7
+
+## Source code
+
+/src/ @DiogoRibeiro7
+/tests/ @DiogoRibeiro7
+
+## Documentation and examples
+
+/docs/ @DiogoRibeiro7
+/examples/ @DiogoRibeiro7
+/notebooks/ @DiogoRibeiro7
+
+## Repository and automation config
+
+/.github/ @DiogoRibeiro7
+/pyproject.toml @DiogoRibeiro7
+/Makefile @DiogoRibeiro7
+/Dockerfile @DiogoRibeiro7
+/docker-compose.yml @DiogoRibeiro7
+/README.md @DiogoRibeiro7

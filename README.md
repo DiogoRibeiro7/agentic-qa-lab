@@ -1,5 +1,9 @@
 # agentic-qa-lab
 
+[![CI](https://github.com/DiogoRibeiro7/agentic-qa-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DiogoRibeiro7/agentic-qa-lab/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
+![Poetry](https://img.shields.io/badge/dependencies-poetry-60A5FA)
+
 Autonomous UI and game-testing agent using vision-language reasoning, browser control, action planning, failure recovery, and evaluation.
 
 This repository is designed as a portfolio project for founding AI engineer, agentic AI, AI/ML engineer, and applied AI research roles.
@@ -29,6 +33,40 @@ Build an agent that can interact with a browser-based game or UI workflow. The a
 - OpenAI-compatible LLM client abstraction
 - SQLite/PostgreSQL for trace storage
 - MLflow or local JSONL for experiment tracking
+
+## Domain model
+
+The core domain layer (`agentic_qa_lab.domain`) defines the provider- and
+environment-agnostic types that flow through every run. They are plain Pydantic
+models with strict validation and no I/O, so they serialize cleanly and are easy
+to test.
+
+- **`TaskSpec`** — declarative description of a task: goal, `start_url`, an
+  optional `success_selector`, and run safeguards (`max_steps`, `max_retries`,
+  `timeout_seconds`).
+- **`Observation`** — a multimodal snapshot of environment state: URL, title,
+  DOM snapshot, optional screenshot path, timestamp, and viewport.
+- **`AgentAction`** — the unit of agent intent. Supported `ActionType` values
+  are `click`, `type_text`, `press_key`, `wait`, `finish`, and `fail`.
+  Cross-field validation enforces that, e.g., `click` has a selector or
+  coordinates, `type_text` carries non-empty text, and `wait` has a positive
+  duration. `finish`/`fail` are terminal.
+- **`ActionResult`** — outcome of executing one action, including a
+  `FailureCategory` taxonomy bucket, retry count, and duration.
+- **`TraceStep`** — one `(observation, action, result)` tuple.
+- **`RunResult`** — aggregated run outcome with a terminal `RunStatus`
+  (`success`, `failure`, `timeout`, `max_steps`, `error`), the ordered trace,
+  total retries, and timing. Validation keeps the status, failure category, and
+  timestamps mutually consistent.
+
+```python
+from agentic_qa_lab.domain import AgentAction, TaskSpec
+
+task = TaskSpec(task_id="login", goal="Log in", start_url="https://example.com")
+action = AgentAction.type_text("alice", selector="#username")
+```
+
+Run the domain tests with `pytest tests/test_domain.py`.
 
 ## Portfolio signal
 
@@ -64,6 +102,7 @@ make lint
 make typecheck
 make test
 make format
+make precommit
 ```
 
 Install and use pre-commit hooks:
@@ -106,6 +145,8 @@ The CI workflow runs these checks on pushes and pull requests to main and develo
 2. Keep changes scoped and include tests where behavior changes.
 3. Run local quality checks before opening a pull request.
 4. Open a PR with clear context, validation notes, and follow-up items.
+
+Pull requests and issues should use the repository templates in .github to keep reports actionable and consistent.
 
 ## Roadmap
 
