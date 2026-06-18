@@ -14,7 +14,9 @@ def test_runtime_settings_defaults_are_valid() -> None:
 
 
 def test_project_paths_accept_path_objects() -> None:
-    paths = ProjectPaths(data_dir=Path("data"), artifact_dir=Path("artifacts"), model_dir=Path("models"))
+    paths = ProjectPaths(
+        data_dir=Path("data"), artifact_dir=Path("artifacts"), model_dir=Path("models")
+    )
 
     assert paths.data_dir == Path("data")
     assert paths.artifact_dir == Path("artifacts")

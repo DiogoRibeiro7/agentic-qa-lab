@@ -68,6 +68,27 @@ action = AgentAction.type_text("alice", selector="#username")
 
 Run the domain tests with `pytest tests/test_domain.py`.
 
+## Browser environment
+
+`agentic_qa_lab.environments` keeps all browser I/O behind the
+`BrowserEnvironment` interface so agents only ever speak in domain types.
+`PlaywrightEnvironment` is the reference adapter:
+
+- `open(url)` navigates and returns the first `Observation`.
+- `observe()` captures URL, title, DOM snapshot, and an optional screenshot.
+- `execute(action)` dispatches a `click`, `type_text`, `press_key`, or `wait`
+  to Playwright and returns a structured `ActionResult`. Timeouts and missing
+  elements are mapped to `FailureCategory` buckets instead of raising.
+- It is a context manager, so the browser is always released.
+
+The adapter accepts an injected `page`, which makes it fully unit-testable with
+a fake — see `tests/test_environments.py` (no browser binaries required).
+
+```bash
+playwright install chromium     # one-time, for real runs
+python examples/simple_form_task.py
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.
