@@ -1,0 +1,27 @@
+site_name: agentic-qa-lab
+site_description: Autonomous UI testing agents with browser control, vision grounding, and evaluation tooling.
+site_url: https://DiogoRibeiro7.github.io/agentic-qa-lab/
+repo_url: https://github.com/DiogoRibeiro7/agentic-qa-lab
+repo_name: DiogoRibeiro7/agentic-qa-lab
+
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: cyan
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Overview: index.md
+  - Usage: usage.md
+  - API: api.md
+  - Architecture: architecture.md

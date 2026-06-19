@@ -1,6 +1,7 @@
 # agentic-qa-lab
 
 [![CI](https://github.com/DiogoRibeiro7/agentic-qa-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DiogoRibeiro7/agentic-qa-lab/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-526CFE)](https://DiogoRibeiro7.github.io/agentic-qa-lab/)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
 ![Poetry](https://img.shields.io/badge/dependencies-poetry-60A5FA)
 
@@ -263,6 +264,9 @@ docker compose up --build                            # api :8000, dashboard :850
 Dashboard screenshots live in [docs/](docs/) once you have run the stack and
 captured them (`docs/dashboard_comparison.png`, `docs/dashboard_trace.png`).
 
+Published docs are built with MkDocs Material and served from GitHub Pages at
+`https://DiogoRibeiro7.github.io/agentic-qa-lab/`.
+
 ## Vision-language reasoning
 
 Observations are multimodal, so the planner can ground on pixels as well as
@@ -459,6 +463,7 @@ make typecheck
 make test
 make format
 make precommit
+make docs
 ```
 
 Install and use pre-commit hooks:

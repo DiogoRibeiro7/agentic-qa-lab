@@ -51,5 +51,8 @@ jobs:
       - name: Type check
         run: poetry run mypy
 
+      - name: Build docs
+        run: poetry run mkdocs build --strict
+
       - name: Test
         run: poetry run pytest -q

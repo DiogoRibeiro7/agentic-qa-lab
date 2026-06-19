@@ -96,7 +96,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   `APISettings` now load from environment variables or `.env` via
   `pydantic-settings`; runtime code no longer reads `os.environ` ad hoc for LLM
   or API store configuration.
-- ⬜ **Docs:** publish API/usage docs (mkdocs) and add a README CI badge.
+- ✅ **Docs:** added a MkDocs site (`mkdocs.yml`, usage/API/architecture
+  pages), CI now builds docs, GitHub Pages deployment is wired, and README has
+  docs/CI badges.
 
 ## New features ⬜
 

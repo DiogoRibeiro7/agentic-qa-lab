@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test format precommit run
+.PHONY: install lint typecheck test format precommit docs run
 
 install:
 	poetry install --with dev
@@ -17,6 +17,9 @@ format:
 
 precommit:
 	poetry run pre-commit run --all-files
+
+docs:
+	poetry run mkdocs build --strict
 
 run:
 	poetry run python -m agentic_qa_lab.cli
