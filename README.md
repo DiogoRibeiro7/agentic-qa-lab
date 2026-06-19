@@ -137,11 +137,13 @@ backend can be plugged in without touching the agent logic.
   `LLM_BASE_URL` (default `https://api.openai.com/v1`), and `LLM_MODEL`
   (default `gpt-4o-mini`).
 - **`LLMPlannerAgent`** — renders the goal, the current observation (URL,
-  title, truncated DOM), and a short action history into a chat prompt, then
-  parses the reply into a strictly-validated `AgentAction`. JSON inside a
-  ```` ```json ```` fence is supported. Invalid replies trigger a correction
-  re-prompt up to `max_parse_retries`; if the model still fails, the agent
-  emits a terminal `fail` so the run ends cleanly.
+  title, compact page summary, and a short action history into a chat prompt,
+  then parses the reply into a strictly-validated `AgentAction`. Instead of
+  dumping raw HTML, the prompt prefers visible page text plus a compact summary
+  of interactive elements, and it caps history/memory blocks by approximate
+  token budget. JSON inside a ```` ```json ```` fence is supported. Invalid
+  replies trigger a correction re-prompt up to `max_parse_retries`; if the
+  model still fails, the agent emits a terminal `fail` so the run ends cleanly.
 
 ```bash
 export LLM_API_KEY=sk-...           # any OpenAI-compatible provider

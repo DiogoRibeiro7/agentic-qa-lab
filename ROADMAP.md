@@ -83,8 +83,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Parallel benchmarking:** `BenchmarkRunner.run(..., workers=N)` now runs
   independent cases concurrently with a configurable thread-pool worker count;
   the CLI exposes it as `agentic-qa benchmark --workers N`.
-- ⬜ **Richer prompts:** trim/condense DOM more intelligently (accessibility
-  tree instead of raw HTML), and cap memory/history by token budget.
+- ✅ **Richer prompts:** `LLMPlannerAgent` now prefers visible page text plus a
+  compact interactive-element summary instead of raw HTML dumps, and caps
+  history/memory blocks by approximate token budget.
 - ⬜ **Structured LLM output:** use tool/function-calling or JSON-schema mode
   instead of free-text JSON parsing to cut retry churn.
 - ⬜ **Coverage gate:** add a `--cov-fail-under` threshold in CI now that

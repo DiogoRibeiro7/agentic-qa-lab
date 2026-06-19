@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from agentic_qa_lab.agents import LLMMessage, LLMPlannerAgent
-from agentic_qa_lab.domain import ActionType, Observation, TaskSpec
+from agentic_qa_lab.domain import (
+    ActionResult,
+    ActionType,
+    AgentAction,
+    FailureCategory,
+    Observation,
+    TaskSpec,
+    TraceStep,
+)
 
 
 class FakeLLM:
@@ -59,7 +67,67 @@ def test_prompt_includes_goal_and_dom() -> None:
 
     user_msg = llm.prompts[0][1].content
     assert "GOAL: Log in" in user_msg
-    assert "id='go'" in user_msg  # DOM snapshot included
+    assert "PAGE SUMMARY:" in user_msg
+    assert "button id=go" in user_msg
+
+
+def test_prompt_prefers_visible_text_over_raw_dom_dump() -> None:
+    llm = FakeLLM(['{"type": "finish", "reason": "done"}'])
+    observation = Observation(
+        step=0,
+        url="https://example.com/login",
+        title="Login",
+        visible_text="Login form Sign in",
+        dom_snapshot="<div><button id='go'>Go</button></div>",
+        timestamp=1.0,
+    )
+
+    LLMPlannerAgent(llm).next_action(_task(), observation, [])
+
+    user_msg = llm.prompts[0][1].content
+    assert "VISIBLE_TEXT:\nLogin form Sign in" in user_msg
+    assert "DOM (truncated" not in user_msg
+
+
+def test_history_is_capped_by_token_budget() -> None:
+    trace = [
+        TraceStep(
+            index=i,
+            observation=_obs(),
+            action=AgentAction.click(f"#button-{i}"),
+            result=ActionResult.failed(
+                "missing",
+                category=FailureCategory.ELEMENT_NOT_FOUND,
+            ),
+        )
+        for i in range(6)
+    ]
+
+    rendered = LLMPlannerAgent._render_history(trace, token_budget=12)
+    assert "#button-5" in rendered
+    assert "#button-0" not in rendered
+
+
+def test_memory_is_capped_by_token_budget() -> None:
+    llm = FakeLLM(['{"type": "finish", "reason": "done"}'])
+    trace = [
+        TraceStep(
+            index=i,
+            observation=_obs(),
+            action=AgentAction.click("#go"),
+            result=ActionResult.failed(
+                f"very long failure message {i} " * 10,
+                category=FailureCategory.ELEMENT_NOT_FOUND,
+            ),
+        )
+        for i in range(3)
+    ]
+
+    LLMPlannerAgent(llm, memory_token_budget=10).next_action(_task(), _obs(), trace)
+
+    user_msg = llm.prompts[0][1].content
+    assert "MEMORY (learned this run):" in user_msg
+    assert "..." in user_msg
 
 
 def test_retries_on_invalid_then_succeeds() -> None:
