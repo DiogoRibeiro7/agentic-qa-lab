@@ -233,15 +233,17 @@ otherwise they skip so CI stays green.
 
 ## API and dashboard
 
-A small web tier makes runs inspectable. By design the API ingests *completed*
-runs (the `Runner`/benchmark produce them) rather than launching browsers
-itself, so the web tier is stateless and browser-free.
+A small web tier makes runs inspectable and can also queue local task-file
+executions through a lightweight in-memory worker.
 
 **FastAPI service** (`agentic_qa_lab.api`):
 
 | Method & path            | Purpose                          |
 | ------------------------ | -------------------------------- |
 | `GET  /health`           | liveness probe                   |
+| `POST /runs/execute`     | queue a task file for execution  |
+| `GET  /executions`       | list queued/completed executions |
+| `GET  /executions/{id}`  | execution status/details         |
 | `POST /runs`             | store a `RunResult`, returns id  |
 | `GET  /runs`             | list run summaries               |
 | `GET  /runs/{id}`        | full `RunResult`                 |
@@ -251,8 +253,8 @@ Runs are persisted as one JSON file per run under `AGENTIC_QA_STORE_DIR`
 (default `artifacts/runs`).
 
 **Streamlit dashboard** (`apps/dashboard/app.py`) reads the API
-(`AGENTIC_QA_API_URL`) and offers a run-comparison table with a success-rate
-metric and a per-step trace viewer.
+(`AGENTIC_QA_API_URL`) and offers a launch form, an execution-queue view, a
+run-comparison table with a success-rate metric, and a per-step trace viewer.
 
 ```bash
 uvicorn agentic_qa_lab.api.app:app --reload          # API on :8000

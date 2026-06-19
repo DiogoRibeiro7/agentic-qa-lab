@@ -102,9 +102,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## New features ⬜
 
-- ⬜ **Run execution API.** Today the API only ingests completed runs. Add a
-  `POST /runs/execute` that queues a task and a worker that runs it, so the
-  dashboard can launch runs, not just view them.
+- ✅ **Run execution API.** The API now exposes `POST /runs/execute` plus
+  execution-status endpoints backed by a lightweight worker thread, and the
+  dashboard can launch runs instead of only viewing stored ones.
 - ⬜ **Dashboard upgrades.** Show step screenshots inline, a trace timeline, and
   side-by-side diffing of two runs (DOM-only vs combined, etc.).
 - ⬜ **More environments.** Selenium and Appium/mobile adapters behind the same

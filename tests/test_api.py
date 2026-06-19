@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from agentic_qa_lab.api import RunStore, create_app
+from agentic_qa_lab.api import RunExecutionManager, RunStore, create_app
 from agentic_qa_lab.api.app import create_app as create_default_app
 from agentic_qa_lab.domain import (
     ActionResult,
@@ -50,6 +51,16 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     store = RunStore(tmp_path / "runs", id_factory=next_id)
     with TestClient(create_app(store)) as test_client:
         yield test_client
+
+
+def _await_execution(client: TestClient, execution_id: str) -> dict[str, object]:
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        payload = client.get(f"/executions/{execution_id}").json()
+        if payload["status"] in {"completed", "failed"}:
+            return payload
+        time.sleep(0.02)
+    raise AssertionError(f"execution {execution_id} did not finish in time")
 
 
 def test_health(client: TestClient) -> None:
@@ -108,3 +119,60 @@ def test_create_app_uses_store_dir_from_env(
 
     root = app.state.store._root  # noqa: SLF001 - validates settings wiring
     assert root == tmp_path / "custom-runs"
+    app.state.execution_manager.close()
+
+
+def test_execute_run_queues_and_stores_completed_run(tmp_path: Path) -> None:
+    counter = {"n": 0}
+
+    def next_id() -> str:
+        counter["n"] += 1
+        return f"run-{counter['n']:03d}"
+
+    def fake_run_factory(_request: object) -> RunResult:
+        return _run()
+
+    store = RunStore(tmp_path / "runs", id_factory=next_id)
+    execution_manager = RunExecutionManager(
+        store,
+        artifact_dir=tmp_path / "artifacts",
+        run_factory=fake_run_factory,
+        id_factory=lambda: "exec-001",
+    )
+    with TestClient(create_app(store, execution_manager)) as client:
+        queued = client.post(
+            "/runs/execute",
+            json={"task_path": "tasks/example_login.yaml"},
+        )
+        assert queued.status_code == 202
+        assert queued.json()["execution_id"] == "exec-001"
+
+        record = _await_execution(client, "exec-001")
+        assert record["status"] == "completed"
+        assert record["run_id"] == "run-001"
+
+        runs = client.get("/runs").json()
+        assert len(runs) == 1
+        assert runs[0]["run_id"] == "run-001"
+
+
+def test_missing_execution_returns_404(client: TestClient) -> None:
+    response = client.get("/executions/nope")
+    assert response.status_code == 404
+
+
+def test_list_executions_returns_records(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+    execution_manager = RunExecutionManager(
+        store,
+        artifact_dir=tmp_path / "artifacts",
+        run_factory=lambda _request: _run(),
+        id_factory=lambda: "exec-001",
+    )
+    with TestClient(create_app(store, execution_manager)) as client:
+        client.post("/runs/execute", json={"task_path": "tasks/example_login.yaml"})
+        _await_execution(client, "exec-001")
+
+        payload = client.get("/executions")
+        assert payload.status_code == 200
+        assert payload.json()[0]["execution_id"] == "exec-001"

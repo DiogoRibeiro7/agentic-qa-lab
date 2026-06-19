@@ -32,6 +32,18 @@ def _get(path: str) -> Any:
         return json.loads(response.read().decode("utf-8"))
 
 
+def _post(path: str, payload: dict[str, Any]) -> Any:
+    """POST JSON to the API and return the decoded response."""
+    request = urllib.request.Request(  # noqa: S310 - operator-configured URL
+        url=f"{API_URL}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
+        return json.loads(response.read().decode("utf-8"))
+
+
 def render() -> None:
     """Render the dashboard."""
     st.set_page_config(page_title="agentic-qa-lab", layout="wide")
@@ -39,13 +51,47 @@ def render() -> None:
     st.caption(f"API: {API_URL}")
 
     try:
+        executions = _get("/executions")
         runs = _get("/runs")
     except OSError as exc:
         st.error(f"Could not reach the API at {API_URL}: {exc}")
         st.stop()
 
+    st.header("Launch run")
+    with st.form("execute-run"):
+        task_path = st.text_input("Task path", value="tasks/example_login.yaml")
+        col1, col2 = st.columns(2)
+        agent = col1.selectbox("Agent", ["rule", "llm"])
+        mode = col2.selectbox("Observation mode", ["dom_only", "screenshot_only", "combined"])
+        col3, col4 = st.columns(2)
+        reflect = col3.checkbox("Reflect", value=False)
+        headless = col4.checkbox("Headless", value=True)
+        submitted = st.form_submit_button("Queue run")
+    if submitted:
+        try:
+            record = _post(
+                "/runs/execute",
+                {
+                    "task_path": task_path,
+                    "agent": agent,
+                    "mode": mode,
+                    "reflect": reflect,
+                    "headless": headless,
+                },
+            )
+        except OSError as exc:
+            st.error(f"Failed to queue run: {exc}")
+        else:
+            st.success(f"Queued execution {record['execution_id']}")
+
+    st.header("Execution queue")
+    if executions:
+        st.dataframe(pd.DataFrame(executions), use_container_width=True)
+    else:
+        st.info("No queued or completed executions yet.")
+
     if not runs:
-        st.info("No runs stored yet. POST a RunResult to /runs to populate this view.")
+        st.info("No runs stored yet. Queue one above or POST a RunResult to /runs.")
         st.stop()
 
     frame = pd.DataFrame(runs)
