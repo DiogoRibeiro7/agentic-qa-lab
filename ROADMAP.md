@@ -117,8 +117,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Record & replay.** Added `agentic-qa record`, which launches a browser,
   captures manual clicks/edits/key presses, and writes a reusable task file
   containing a `TaskSpec` plus baseline `plan`.
-- ⬜ **Secrets handling for tasks.** Reference credentials via env/secret refs in
-  task files instead of inline plaintext (`SuperSecretPassword!`).
+- ✅ **Secrets handling for tasks.** Task `plan` entries now support explicit
+  `{env: VAR_NAME}` refs for sensitive text payloads, and bundled login tasks
+  use env-backed passwords instead of inline plaintext.
 - ⬜ **Report exporters.** JUnit/Allure output so benchmark results plug into
   existing CI dashboards.
 - ⬜ **Task pack.** Expand `tasks/real/` into a curated suite (forms, tables,

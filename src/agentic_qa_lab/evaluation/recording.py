@@ -78,7 +78,13 @@ _RECORDER_SCRIPT = """
     "change",
     (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+      if (
+        !(
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement
+        )
+      ) {
         return;
       }
       const selector = selectorFor(target);

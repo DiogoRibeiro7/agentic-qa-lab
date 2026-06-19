@@ -13,7 +13,9 @@ metadata:
   difficulty: medium
 plan:
   - {type: type_text, selector: "#username", text: tomsmith}
-  - {type: type_text, selector: "#password", text: "SuperSecretPassword!"}
+  - type: type_text
+    selector: "#password"
+    text: {env: AGENTIC_QA_HEROKUAPP_PASSWORD}
   - {type: click, selector: "button[type='submit']"}
   - {type: click, selector: "a[href='/logout']"}
   - {type: finish, reason: Logged in and then out.}

@@ -47,6 +47,21 @@ agentic-qa record --task-id example-login --goal "Log in" --start-url https://ex
 The recorder launches a browser, logs clicks, field edits, and supported key
 presses, then writes a `TaskSpec` plus baseline `plan` to YAML or JSON.
 
+## Secret values in task files
+
+Task actions can resolve sensitive text from the environment instead of storing
+plaintext in source control:
+
+```yaml
+plan:
+  - type: type_text
+    selector: "#password"
+    text: {env: AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD}
+```
+
+`load_case` and the CLI resolve `{env: VAR_NAME}` before validating the
+`AgentAction`. If the variable is missing, task loading fails fast.
+
 ## API environment
 
 For non-UI flows, `APIEnvironment` lets the same runner/agent loop drive HTTP

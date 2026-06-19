@@ -10,6 +10,8 @@ metadata:
   difficulty: easy
 plan:
   - {type: type_text, selector: "#username", text: alice}
-  - {type: type_text, selector: "#password", text: s3cret}
+  - type: type_text
+    selector: "#password"
+    text: {env: AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD}
   - {type: click, selector: "#submit"}
   - {type: finish, reason: Submitted the login form.}

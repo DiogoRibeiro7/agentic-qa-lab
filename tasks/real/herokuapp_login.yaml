@@ -13,6 +13,8 @@ metadata:
   difficulty: easy
 plan:
   - {type: type_text, selector: "#username", text: tomsmith}
-  - {type: type_text, selector: "#password", text: "SuperSecretPassword!"}
+  - type: type_text
+    selector: "#password"
+    text: {env: AGENTIC_QA_HEROKUAPP_PASSWORD}
   - {type: click, selector: "button[type='submit']"}
   - {type: finish, reason: Submitted valid credentials.}

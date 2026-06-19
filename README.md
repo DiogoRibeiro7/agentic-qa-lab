@@ -189,6 +189,9 @@ agent = LLMPlannerAgent(OpenAICompatibleClient())
   expands globs internally (so it works in PowerShell too), de-duplicates, and
   sorts by `task_id`. `dump_case` writes the same format back out, which the
   manual recorder uses.
+- Task plans can keep sensitive input out of source control by using explicit
+  env refs inside action payloads, for example
+  `text: {env: AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD}`.
 - **`BenchmarkRunner`** runs every case with a fresh agent and environment
   (built by injected factories) and returns one `RunResult` per task.
 - **`compute_summary`** reports success rate, mean/median steps, total retries,

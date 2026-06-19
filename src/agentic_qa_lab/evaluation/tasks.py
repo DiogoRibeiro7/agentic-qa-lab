@@ -17,6 +17,7 @@ actions for the deterministic :class:`RuleBasedAgent` baseline. Example::
 from __future__ import annotations
 
 import json
+import os
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,10 @@ def load_case(path: str | Path) -> BenchmarkCase:
     """Load a single :class:`BenchmarkCase` from a file."""
     raw = _load_raw(Path(path))
     plan_raw = raw.pop("plan", []) or []
-    plan = [AgentAction.model_validate(item) for item in plan_raw]
+    plan = [
+        AgentAction.model_validate(_resolve_env_refs(item, path=f"plan[{index}]"))
+        for index, item in enumerate(plan_raw)
+    ]
     task = TaskSpec.model_validate(raw)
     return BenchmarkCase(task=task, plan=plan)
 
@@ -102,3 +106,25 @@ def dump_case(case: BenchmarkCase, path: str | Path) -> Path:
 
     target.write_text(text, encoding="utf-8")
     return target
+
+
+def _resolve_env_refs(value: Any, *, path: str) -> Any:
+    """Resolve explicit ``{env: VAR_NAME}`` references inside task actions."""
+    if isinstance(value, dict):
+        keys = set(value)
+        if keys == {"env"}:
+            name = value["env"]
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(f"{path}.env must be a non-empty environment variable name.")
+            try:
+                return os.environ[name]
+            except KeyError as exc:
+                raise ValueError(
+                    f"Environment variable '{name}' referenced at {path} is not set."
+                ) from exc
+        return {key: _resolve_env_refs(item, path=f"{path}.{key}") for key, item in value.items()}
+    if isinstance(value, list):
+        return [
+            _resolve_env_refs(item, path=f"{path}[{index}]") for index, item in enumerate(value)
+        ]
+    return value

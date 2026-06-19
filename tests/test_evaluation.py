@@ -5,6 +5,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from agentic_qa_lab.agents import RuleBasedAgent
 from agentic_qa_lab.domain import (
     ActionResult,
@@ -137,6 +139,42 @@ def test_load_json_case(tmp_path: Path) -> None:
     assert case.plan[0].type.value == "finish"
 
 
+def test_load_case_resolves_env_text_refs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENTIC_QA_TEST_PASSWORD", "s3cret")
+    path = tmp_path / "secret.yaml"
+    path.write_text(
+        "task_id: s\n"
+        "goal: log in\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - type: type_text\n"
+        "    selector: '#password'\n"
+        "    text: {env: AGENTIC_QA_TEST_PASSWORD}\n",
+        encoding="utf-8",
+    )
+
+    case = load_case(path)
+
+    assert case.plan[0].text == "s3cret"
+
+
+def test_load_case_raises_on_missing_env_text_ref(tmp_path: Path) -> None:
+    path = tmp_path / "secret.yaml"
+    path.write_text(
+        "task_id: s\n"
+        "goal: log in\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - type: type_text\n"
+        "    selector: '#password'\n"
+        "    text: {env: AGENTIC_QA_MISSING_SECRET}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="AGENTIC_QA_MISSING_SECRET"):
+        load_case(path)
+
+
 def test_load_cases_sorted_and_deduped(tmp_path: Path) -> None:
     (tmp_path / "z.yaml").write_text(
         "task_id: z\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8"
@@ -148,7 +186,8 @@ def test_load_cases_sorted_and_deduped(tmp_path: Path) -> None:
     assert [c.task.task_id for c in cases] == ["a", "z"]
 
 
-def test_bundled_example_tasks_load() -> None:
+def test_bundled_example_tasks_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD", "s3cret")
     cases = load_cases(["tasks/*.yaml", "tasks/*.json"])
     ids = {c.task.task_id for c in cases}
     assert {"example-login", "example-search"} <= ids

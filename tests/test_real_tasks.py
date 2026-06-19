@@ -19,6 +19,7 @@ from agentic_qa_lab.evaluation import BenchmarkCase, load_cases
 
 REAL_GLOBS = ["tasks/real/*.yaml", "tasks/real/*.json"]
 RUN_NETWORK = os.environ.get("AGENTIC_QA_RUN_NETWORK_TESTS") == "1"
+os.environ.setdefault("AGENTIC_QA_HEROKUAPP_PASSWORD", "SuperSecretPassword!")
 
 
 def _real_cases() -> list[BenchmarkCase]:
