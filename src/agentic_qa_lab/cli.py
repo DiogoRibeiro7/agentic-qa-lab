@@ -157,6 +157,10 @@ def run(
     reflect: Annotated[
         bool, typer.Option(help="Wrap the agent in a settle-and-retry repair loop.")
     ] = False,
+    self_heal: Annotated[
+        bool,
+        typer.Option(help="Retry element-not-found actions with nearby selector alternatives."),
+    ] = False,
     require_approval: Annotated[
         bool,
         typer.Option(
@@ -177,7 +181,14 @@ def run(
     ``<out_dir>/<task_id>.jsonl``. With the ``llm`` agent, token usage is metered
     and (given ``--price-in``/``--price-out``) costed.
     """
-    from .agents import ApprovalAgent, ReflectiveAgent, Runner, TokenMeter, write_trace_jsonl
+    from .agents import (
+        ApprovalAgent,
+        ReflectiveAgent,
+        Runner,
+        SelfHealingAgent,
+        TokenMeter,
+        write_trace_jsonl,
+    )
     from .environments import PlaywrightEnvironment
     from .evaluation import load_case
 
@@ -188,6 +199,8 @@ def run(
         else None
     )
     chosen = build_agent(case, agent, mode, meter=meter)
+    if self_heal:
+        chosen = SelfHealingAgent(chosen)
     if reflect:
         chosen = ReflectiveAgent(chosen)
     if require_approval:

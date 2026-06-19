@@ -111,8 +111,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - 🟡 **More environments.** Added `APIEnvironment` for non-UI HTTP flows
   behind the same `BrowserEnvironment` interface. Selenium and Appium/mobile
   adapters are still pending.
-- ⬜ **Self-healing selectors.** On `element_not_found`, propose alternative
-  selectors (nearby text/role) and retry before failing.
+- ✅ **Self-healing selectors.** `SelfHealingAgent` now proposes DOM-derived
+  replacement selectors (id/name/text/role) after `element_not_found`
+  failures, and the CLI exposes it as `agentic-qa run --self-heal`.
 - ⬜ **Record & replay.** Capture a manual session into a `TaskSpec` + plan to
   seed the rule-based baseline.
 - ⬜ **Secrets handling for tasks.** Reference credentials via env/secret refs in

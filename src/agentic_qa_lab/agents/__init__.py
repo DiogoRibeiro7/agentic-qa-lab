@@ -28,6 +28,7 @@ from .planner import LLMPlannerAgent, ObservationMode
 from .reflective import ReflectiveAgent
 from .rule_based import RuleBasedAgent
 from .runner import Runner, write_trace_jsonl
+from .self_heal import SelfHealingAgent
 from .usage import MeteredClient, TokenMeter, estimate_tokens
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "RiskPolicy",
     "RuleBasedAgent",
     "Runner",
+    "SelfHealingAgent",
     "TokenMeter",
     "Usage",
     "allow_all",

@@ -162,6 +162,10 @@ backend can be plugged in without touching the agent logic.
   Invalid replies trigger a correction re-prompt up to `max_parse_retries`; if
   the model still fails, the agent emits a terminal `fail` so the run ends
   cleanly.
+- **`SelfHealingAgent`** — wraps any agent and, after an
+  `element_not_found` failure, proposes DOM-derived replacement selectors
+  (id/name/text/role/test id) before letting the inner agent repeat the same
+  broken selector unchanged.
 
 ```bash
 export LLM_API_KEY=sk-...           # any OpenAI-compatible provider
@@ -202,6 +206,9 @@ agentic-qa run --task tasks/example_login.yaml
 # One task with the LLM planner, combined grounding, and the repair loop
 agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --reflect
 
+# One task with selector self-healing enabled
+agentic-qa run --task tasks/example_login.yaml --self-heal
+
 # Batch benchmark with summary CSV/JSON
 agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
 
@@ -212,7 +219,8 @@ agentic-qa benchmark --tasks "tasks/real/*.yaml" --workers 2
 `run` exits non-zero when the task does not succeed, so it composes in scripts
 and CI. `--agent` selects `rule` or `llm`; `--mode` sets the LLM grounding
 channel; `--reflect` wraps the agent in the repair loop (and lets failed actions
-stay in the trace for recovery).
+stay in the trace for recovery); `--self-heal` retries repeated
+`element_not_found` actions with DOM-derived selector alternatives.
 
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)

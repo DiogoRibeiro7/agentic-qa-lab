@@ -27,6 +27,7 @@ Useful variants:
 - `--agent llm` to use the planner instead of the rule baseline.
 - `--mode combined` to attach both DOM-derived context and screenshots.
 - `--reflect` to enable the settle-and-retry repair loop.
+- `--self-heal` to retry `element_not_found` actions with DOM-derived selector alternatives.
 - `--require-approval` to prompt before risky actions.
 
 Example:
