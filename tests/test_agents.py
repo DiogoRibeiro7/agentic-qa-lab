@@ -64,7 +64,7 @@ def _task(**kwargs: object) -> TaskSpec:
         "start_url": "https://example.com/",
     }
     base.update(kwargs)
-    return TaskSpec(**base)  # type: ignore[arg-type]
+    return TaskSpec.model_validate(base)
 
 
 # --------------------------------------------------------------------------- #

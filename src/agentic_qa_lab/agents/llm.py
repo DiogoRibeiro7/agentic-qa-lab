@@ -65,6 +65,41 @@ class LLMMessage:
         return {"role": self.role, "content": parts}
 
 
+def _extract_completion_content(body: object) -> str:
+    """Extract assistant content from a chat-completions API response.
+
+    Args:
+        body: Decoded JSON response object.
+
+    Returns:
+        Assistant content as text.
+
+    Raises:
+        ValueError: If the response does not match the expected schema.
+    """
+    if not isinstance(body, dict):
+        raise ValueError("Completion response must be a JSON object.")
+
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("Completion response is missing a non-empty 'choices' list.")
+
+    first = choices[0]
+    if not isinstance(first, dict):
+        raise ValueError("Completion choice must be a JSON object.")
+
+    message = first.get("message")
+    if not isinstance(message, dict):
+        raise ValueError("Completion choice is missing 'message'.")
+
+    content = message.get("content")
+    if content is None:
+        return ""
+    if not isinstance(content, str):
+        raise ValueError("Completion content must be a string when present.")
+    return content
+
+
 @runtime_checkable
 class LLMClient(Protocol):
     """Minimal chat-completion interface used by planner agents."""
@@ -118,13 +153,12 @@ class OpenAICompatibleClient:
         if not self._api_key:
             raise LLMConfigError("LLM_API_KEY environment variable is not set.")
 
-        payload = json.dumps(
-            {
-                "model": self._model,
-                "messages": [m.as_dict() for m in messages],
-                "temperature": self._temperature,
-            }
-        ).encode("utf-8")
+        payload_data: dict[str, Any] = {
+            "model": self._model,
+            "messages": [m.as_dict() for m in messages],
+            "temperature": self._temperature,
+        }
+        payload = json.dumps(payload_data).encode("utf-8")
 
         request = urllib.request.Request(  # noqa: S310 - URL is operator-configured
             url=f"{self._base_url}/chat/completions",
@@ -137,4 +171,4 @@ class OpenAICompatibleClient:
         )
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
             body = json.loads(response.read().decode("utf-8"))
-        return str(body["choices"][0]["message"]["content"])
+        return _extract_completion_content(body)

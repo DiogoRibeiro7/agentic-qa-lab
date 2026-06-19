@@ -64,7 +64,7 @@ class FlakyEnv(BrowserEnvironment):
 def _task(**kwargs: object) -> TaskSpec:
     base: dict[str, object] = {"task_id": "t", "goal": "g", "start_url": "https://e.com/"}
     base.update(kwargs)
-    return TaskSpec(**base)  # type: ignore[arg-type]
+    return TaskSpec.model_validate(base)
 
 
 def _obs() -> Observation:
