@@ -29,6 +29,12 @@ class BenchmarkSummary(BaseModel):
         Fraction of runs that ended in ``timeout``.
     failure_categories:
         Count of runs per terminal :class:`FailureCategory` value.
+    mean_step_latency_ms, p95_step_latency_ms:
+        Central tendency and tail of per-action latency across all steps.
+    total_tokens:
+        LLM tokens consumed across all runs.
+    total_cost_usd:
+        Estimated LLM cost in USD across all runs.
     """
 
     total: int = Field(ge=0)
@@ -39,6 +45,10 @@ class BenchmarkSummary(BaseModel):
     total_retries: int = Field(ge=0)
     timeout_rate: float = Field(ge=0.0, le=1.0)
     failure_categories: dict[str, int] = Field(default_factory=dict)
+    mean_step_latency_ms: float = Field(default=0.0, ge=0.0)
+    p95_step_latency_ms: float = Field(default=0.0, ge=0.0)
+    total_tokens: int = Field(default=0, ge=0)
+    total_cost_usd: float = Field(default=0.0, ge=0.0)
 
 
 def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
@@ -64,6 +74,7 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
     timeouts = sum(1 for r in results if r.status is RunStatus.TIMEOUT)
     step_counts = [r.step_count for r in results]
     categories = Counter(r.failure_category.value for r in results)
+    latencies = [latency for r in results for latency in r.step_latency_ms]
 
     return BenchmarkSummary(
         total=total,
@@ -74,4 +85,17 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
         total_retries=sum(r.total_retries for r in results),
         timeout_rate=timeouts / total,
         failure_categories=dict(categories),
+        mean_step_latency_ms=float(mean(latencies)) if latencies else 0.0,
+        p95_step_latency_ms=_percentile(latencies, 95),
+        total_tokens=sum(r.total_tokens for r in results),
+        total_cost_usd=sum(r.cost_usd for r in results),
     )
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Return the ``pct`` percentile of ``values`` (nearest-rank), or 0 if empty."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    rank = max(1, round(pct / 100 * len(ordered)))
+    return float(ordered[min(rank, len(ordered)) - 1])

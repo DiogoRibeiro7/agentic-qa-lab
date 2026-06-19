@@ -49,6 +49,10 @@ class RunResult(BaseModel):
         End-to-end wall-clock duration.
     started_at, ended_at:
         Epoch-second timestamps bounding the run.
+    total_tokens:
+        LLM tokens consumed by the run, when measured (0 otherwise).
+    cost_usd:
+        Estimated LLM cost in USD, when measured (0 otherwise).
     """
 
     task_id: str = Field(min_length=1)
@@ -59,6 +63,13 @@ class RunResult(BaseModel):
     duration_seconds: float = Field(default=0.0, ge=0)
     started_at: float = Field(gt=0)
     ended_at: float = Field(gt=0)
+    total_tokens: int = Field(default=0, ge=0)
+    cost_usd: float = Field(default=0.0, ge=0)
+
+    @property
+    def step_latency_ms(self) -> list[float]:
+        """Per-step action latencies in milliseconds."""
+        return [step.result.duration_ms for step in self.steps]
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> RunResult:

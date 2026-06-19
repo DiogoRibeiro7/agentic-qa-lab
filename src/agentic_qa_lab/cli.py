@@ -14,7 +14,7 @@ from .agents import ObservationMode
 from .config import RuntimeSettings
 
 if TYPE_CHECKING:
-    from .agents import Agent
+    from .agents import Agent, LLMClient, TokenMeter
     from .domain import AgentAction
     from .evaluation import BenchmarkCase
 
@@ -29,17 +29,32 @@ class AgentKind(StrEnum):
     LLM = "llm"
 
 
-def build_agent(case: BenchmarkCase, kind: AgentKind, mode: ObservationMode) -> Agent:
+def build_agent(
+    case: BenchmarkCase,
+    kind: AgentKind,
+    mode: ObservationMode,
+    *,
+    meter: TokenMeter | None = None,
+) -> Agent:
     """Construct the agent named by ``kind`` for ``case``.
 
     The ``rule`` baseline replays the case's plan; the ``llm`` planner uses an
-    OpenAI-compatible client with the given observation ``mode``.
+    OpenAI-compatible client with the given observation ``mode``. When ``meter``
+    is supplied the LLM client is wrapped so token usage/cost is recorded.
     """
-    from .agents import LLMPlannerAgent, OpenAICompatibleClient, RuleBasedAgent
+    from .agents import (
+        LLMPlannerAgent,
+        MeteredClient,
+        OpenAICompatibleClient,
+        RuleBasedAgent,
+    )
 
     if kind is AgentKind.RULE:
         return RuleBasedAgent(case.plan)
-    return LLMPlannerAgent(OpenAICompatibleClient(), observation_mode=mode)
+    client: LLMClient = OpenAICompatibleClient()
+    if meter is not None:
+        client = MeteredClient(client, meter)
+    return LLMPlannerAgent(client, observation_mode=mode)
 
 
 def _console_approver(action: AgentAction) -> bool:
@@ -108,6 +123,8 @@ def benchmark(
     table.add_row("median steps", f"{summary.median_steps:.2f}")
     table.add_row("total retries", str(summary.total_retries))
     table.add_row("timeout rate", f"{summary.timeout_rate:.0%}")
+    table.add_row("mean step latency (ms)", f"{summary.mean_step_latency_ms:.1f}")
+    table.add_row("p95 step latency (ms)", f"{summary.p95_step_latency_ms:.1f}")
     console.print(table)
     console.print(f"Wrote {csv_path} and {json_path}")
 
@@ -131,19 +148,27 @@ def run(
         Path, typer.Option("--out-dir", help="Directory for the trace JSONL + screenshots.")
     ] = Path("artifacts/runs"),
     headless: Annotated[bool, typer.Option(help="Run the browser headless.")] = True,
+    price_in: Annotated[float, typer.Option(help="USD per 1k input tokens (llm agent).")] = 0.0,
+    price_out: Annotated[float, typer.Option(help="USD per 1k output tokens (llm agent).")] = 0.0,
 ) -> None:
     """Run a single task with one agent and write its trace.
 
     Launches a fresh Playwright browser (requires ``playwright install
     chromium``), executes the task, prints the outcome, and stores the trace as
-    ``<out_dir>/<task_id>.jsonl``.
+    ``<out_dir>/<task_id>.jsonl``. With the ``llm`` agent, token usage is metered
+    and (given ``--price-in``/``--price-out``) costed.
     """
-    from .agents import ApprovalAgent, ReflectiveAgent, Runner, write_trace_jsonl
+    from .agents import ApprovalAgent, ReflectiveAgent, Runner, TokenMeter, write_trace_jsonl
     from .environments import PlaywrightEnvironment
     from .evaluation import load_case
 
     case = load_case(task)
-    chosen = build_agent(case, agent, mode)
+    meter = (
+        TokenMeter(price_per_1k_input=price_in, price_per_1k_output=price_out)
+        if agent is AgentKind.LLM
+        else None
+    )
+    chosen = build_agent(case, agent, mode, meter=meter)
     if reflect:
         chosen = ReflectiveAgent(chosen)
     if require_approval:
@@ -154,6 +179,10 @@ def run(
     screenshots = out_dir / case.task.task_id / "screenshots"
     with PlaywrightEnvironment.launch(headless=headless, screenshot_dir=screenshots) as env:
         result = runner.run(case.task, chosen, env)
+    if meter is not None:
+        result = result.model_copy(
+            update={"total_tokens": meter.total_tokens, "cost_usd": meter.cost_usd}
+        )
 
     trace_path = write_trace_jsonl(result, out_dir / f"{case.task.task_id}.jsonl")
 
@@ -165,6 +194,9 @@ def run(
     table.add_row("steps", str(result.step_count))
     table.add_row("retries", str(result.total_retries))
     table.add_row("duration_s", f"{result.duration_seconds:.2f}")
+    if meter is not None:
+        table.add_row("tokens", str(result.total_tokens))
+        table.add_row("cost_usd", f"{result.cost_usd:.6f}")
     console.print(table)
     console.print(f"Wrote {trace_path}")
     if not result.succeeded:

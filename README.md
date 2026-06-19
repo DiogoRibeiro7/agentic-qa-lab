@@ -335,6 +335,37 @@ for target in memory.problem_targets:
     print(target.target, target.count, target.last_category)
 ```
 
+## Cost and latency
+
+Runs are costed and timed so benchmarks compare more than success rate.
+
+- **Latency** comes for free from each action's `duration_ms`. `RunResult`
+  exposes `step_latency_ms`, and `BenchmarkSummary` adds `mean_step_latency_ms`
+  and `p95_step_latency_ms` (nearest-rank tail) pooled across all steps.
+- **Cost** is metered at the client boundary. `MeteredClient` wraps any
+  `LLMClient` and records token usage into a `TokenMeter`; tokens are estimated
+  from text length (no tokenizer dependency) and priced via
+  `price_per_1k_input`/`price_per_1k_output`. `RunResult` carries
+  `total_tokens`/`cost_usd`, and the summary aggregates `total_tokens` and
+  `total_cost_usd`. The benchmark CSV/JSON include per-run `tokens` and
+  `cost_usd` columns.
+
+```python
+from agentic_qa_lab.agents import LLMPlannerAgent, MeteredClient, OpenAICompatibleClient, TokenMeter
+
+meter = TokenMeter(price_per_1k_input=0.15, price_per_1k_output=0.60)  # e.g. gpt-4o-mini
+agent = LLMPlannerAgent(MeteredClient(OpenAICompatibleClient(), meter))
+# ... run ...
+print(meter.total_tokens, meter.cost_usd)
+```
+
+From the CLI, the `llm` agent meters automatically; pass prices to cost it:
+
+```bash
+agentic-qa run --task tasks/example_login.yaml --agent llm \
+  --price-in 0.15 --price-out 0.60
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

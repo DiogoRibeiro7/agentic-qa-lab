@@ -25,6 +25,7 @@ from .planner import LLMPlannerAgent, ObservationMode
 from .reflective import ReflectiveAgent
 from .rule_based import RuleBasedAgent
 from .runner import Runner, write_trace_jsonl
+from .usage import MeteredClient, TokenMeter, estimate_tokens
 
 __all__ = [
     "Agent",
@@ -36,14 +37,17 @@ __all__ = [
     "LLMMessage",
     "LLMPlannerAgent",
     "MemorySummary",
+    "MeteredClient",
     "ObservationMode",
     "OpenAICompatibleClient",
     "ReflectiveAgent",
     "RiskPolicy",
     "RuleBasedAgent",
     "Runner",
+    "TokenMeter",
     "allow_all",
     "deny_all",
+    "estimate_tokens",
     "summarize_trace",
     "write_trace_jsonl",
 ]

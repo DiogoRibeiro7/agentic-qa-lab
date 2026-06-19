@@ -73,7 +73,16 @@ def export_results(
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(
-            ["task_id", "status", "failure_category", "steps", "retries", "duration_seconds"]
+            [
+                "task_id",
+                "status",
+                "failure_category",
+                "steps",
+                "retries",
+                "duration_seconds",
+                "tokens",
+                "cost_usd",
+            ]
         )
         for run in results:
             writer.writerow(
@@ -84,6 +93,8 @@ def export_results(
                     run.step_count,
                     run.total_retries,
                     f"{run.duration_seconds:.4f}",
+                    run.total_tokens,
+                    f"{run.cost_usd:.6f}",
                 ]
             )
 
@@ -98,6 +109,8 @@ def export_results(
                 "steps": run.step_count,
                 "retries": run.total_retries,
                 "duration_seconds": run.duration_seconds,
+                "tokens": run.total_tokens,
+                "cost_usd": run.cost_usd,
             }
             for run in results
         ],
