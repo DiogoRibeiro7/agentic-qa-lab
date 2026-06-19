@@ -7,6 +7,7 @@ owns the loop, safeguards, and trace aggregation.
 from __future__ import annotations
 
 from .approval import (
+    ApprovalDecision,
     ApprovalAgent,
     Approver,
     RiskPolicy,
@@ -30,6 +31,7 @@ from .usage import MeteredClient, TokenMeter, estimate_tokens
 
 __all__ = [
     "Agent",
+    "ApprovalDecision",
     "ApprovalAgent",
     "Approver",
     "FailedTarget",

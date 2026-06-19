@@ -309,10 +309,11 @@ a payment. Risk is decided by `RiskPolicy` — by default it flags
 risky keyword (`delete`, `submit`, `pay`, `confirm`, `logout`, ...); both the
 keywords and the eligible action types are overridable.
 
-Approvers are plain `Callable[[AgentAction], bool]`. The library ships
-`deny_all` (the safe default) and `allow_all`; wire your own to a console prompt
-or an allow-list. It composes outermost over `ReflectiveAgent` so it gates what
-would actually execute.
+Approvers are plain `Callable[[AgentAction], bool | ApprovalDecision]`. The
+library ships `deny_all` (the safe default) and `allow_all`; custom approvers
+may also return `ApprovalDecision.ALLOW_SESSION` to approve the rest of the
+current run after a single prompt. It composes outermost over `ReflectiveAgent`
+so it gates what would actually execute.
 
 ```python
 from agentic_qa_lab.agents import ApprovalAgent, RiskPolicy, allow_all
@@ -320,8 +321,8 @@ from agentic_qa_lab.agents import ApprovalAgent, RiskPolicy, allow_all
 agent = ApprovalAgent(inner_agent, approver=my_approver, policy=RiskPolicy())
 ```
 
-From the CLI, `--require-approval` prompts for confirmation before each risky
-action:
+From the CLI, `--require-approval` prompts before risky actions and supports
+`y` (allow once), `a` (allow all risky actions for this run), or `n` (deny):
 
 ```bash
 agentic-qa run --task tasks/delete_account.yaml --require-approval

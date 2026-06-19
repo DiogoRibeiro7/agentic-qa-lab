@@ -65,11 +65,13 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   records the provider's `usage` block, and `MeteredClient` records those real
   token counts when present, falling back to the length-based estimate only
   when the provider reports none.
-- ⬜ **Per-action latency excludes observation cost.** `duration_ms` times only
-  `execute`; screenshot/DOM capture in `observe` is unmeasured. Add an
-  observation-latency field.
-- ⬜ **Approval gate is per-step, not per-session.** `ApprovalAgent` re-prompts
-  for each risky action with no "approve all / remember" option.
+- ✅ **Per-action latency excludes observation cost.** `Observation.capture_ms`
+  now records the time spent producing each observation (screenshot + DOM +
+  visible text); `RunResult.observation_latency_ms` and a
+  `mean_observation_latency_ms` summary metric expose it.
+- ✅ **Approval gate is per-step, not per-session.** `ApprovalAgent` now accepts
+  session-scoped approvals (`ApprovalDecision.ALLOW_SESSION`), and the CLI
+  prompt offers `approve all for this run`.
 - ✅ **CRLF noise on Windows.** Added a `.gitattributes` enforcing LF so commits
   no longer warn about line-ending conversion.
 

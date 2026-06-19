@@ -10,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .agents import ObservationMode
+from .agents import ApprovalDecision, ObservationMode
 from .config import RuntimeSettings
 
 if TYPE_CHECKING:
@@ -57,10 +57,22 @@ def build_agent(
     return LLMPlannerAgent(client, observation_mode=mode)
 
 
-def _console_approver(action: AgentAction) -> bool:
+def _console_approver(action: AgentAction) -> ApprovalDecision:
     """Approver that asks the operator to confirm a risky action on the console."""
     target = action.selector or (action.x, action.y)
-    return typer.confirm(f"Approve risky action '{action.type.value}' on {target}?")
+    prompt = (
+        f"Approve risky action '{action.type.value}' on {target}? "
+        "[y]es/[a]ll/[n]o"
+    )
+    while True:
+        choice = typer.prompt(prompt, default="n").strip().lower()
+        if choice in {"y", "yes"}:
+            return ApprovalDecision.ALLOW_ONCE
+        if choice in {"a", "all"}:
+            return ApprovalDecision.ALLOW_SESSION
+        if choice in {"n", "no"}:
+            return ApprovalDecision.DENY
+        console.print("[red]Enter 'y', 'a', or 'n'.[/red]")
 
 
 @app.command()
@@ -127,6 +139,7 @@ def benchmark(
     table.add_row("timeout rate", f"{summary.timeout_rate:.0%}")
     table.add_row("mean step latency (ms)", f"{summary.mean_step_latency_ms:.1f}")
     table.add_row("p95 step latency (ms)", f"{summary.p95_step_latency_ms:.1f}")
+    table.add_row("mean obs latency (ms)", f"{summary.mean_observation_latency_ms:.1f}")
     console.print(table)
     console.print(f"Wrote {csv_path} and {json_path}")
 
@@ -144,7 +157,10 @@ def run(
         bool, typer.Option(help="Wrap the agent in a settle-and-retry repair loop.")
     ] = False,
     require_approval: Annotated[
-        bool, typer.Option(help="Prompt for confirmation before risky actions.")
+        bool,
+        typer.Option(
+            help="Prompt before risky actions; supports yes/no or approve-all-for-this-run."
+        ),
     ] = False,
     out_dir: Annotated[
         Path, typer.Option("--out-dir", help="Directory for the trace JSONL + screenshots.")

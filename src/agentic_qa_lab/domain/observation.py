@@ -30,6 +30,9 @@ class Observation(BaseModel):
         Filesystem path to a screenshot, when captured.
     timestamp:
         Epoch seconds when the observation was captured.
+    capture_ms:
+        Wall-clock time the environment spent producing this observation
+        (screenshot + DOM + visible text). ``0.0`` when unmeasured.
     viewport:
         ``(width, height)`` of the viewport in pixels.
     """
@@ -41,6 +44,7 @@ class Observation(BaseModel):
     visible_text: str | None = Field(default=None)
     screenshot_path: str | None = Field(default=None)
     timestamp: float = Field(gt=0)
+    capture_ms: float = Field(default=0.0, ge=0)
     viewport: tuple[int, int] | None = Field(default=None)
 
     @field_validator("viewport")

@@ -31,6 +31,8 @@ class BenchmarkSummary(BaseModel):
         Count of runs per terminal :class:`FailureCategory` value.
     mean_step_latency_ms, p95_step_latency_ms:
         Central tendency and tail of per-action latency across all steps.
+    mean_observation_latency_ms:
+        Mean time spent capturing observations (screenshot + DOM) per step.
     total_tokens:
         LLM tokens consumed across all runs.
     total_cost_usd:
@@ -47,6 +49,7 @@ class BenchmarkSummary(BaseModel):
     failure_categories: dict[str, int] = Field(default_factory=dict)
     mean_step_latency_ms: float = Field(default=0.0, ge=0.0)
     p95_step_latency_ms: float = Field(default=0.0, ge=0.0)
+    mean_observation_latency_ms: float = Field(default=0.0, ge=0.0)
     total_tokens: int = Field(default=0, ge=0)
     total_cost_usd: float = Field(default=0.0, ge=0.0)
 
@@ -75,6 +78,7 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
     step_counts = [r.step_count for r in results]
     categories = Counter(r.failure_category.value for r in results)
     latencies = [latency for r in results for latency in r.step_latency_ms]
+    obs_latencies = [latency for r in results for latency in r.observation_latency_ms]
 
     return BenchmarkSummary(
         total=total,
@@ -87,6 +91,7 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
         failure_categories=dict(categories),
         mean_step_latency_ms=float(mean(latencies)) if latencies else 0.0,
         p95_step_latency_ms=_percentile(latencies, 95),
+        mean_observation_latency_ms=float(mean(obs_latencies)) if obs_latencies else 0.0,
         total_tokens=sum(r.total_tokens for r in results),
         total_cost_usd=sum(r.cost_usd for r in results),
     )

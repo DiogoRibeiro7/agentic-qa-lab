@@ -71,6 +71,11 @@ class RunResult(BaseModel):
         """Per-step action latencies in milliseconds."""
         return [step.result.duration_ms for step in self.steps]
 
+    @property
+    def observation_latency_ms(self) -> list[float]:
+        """Per-step observation capture latencies in milliseconds."""
+        return [step.observation.capture_ms for step in self.steps]
+
     @model_validator(mode="after")
     def _validate_consistency(self) -> RunResult:
         """Enforce internal consistency of the aggregated result.

@@ -16,6 +16,7 @@ risky actions are blocked unless something explicitly approves them.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from enum import StrEnum
 
 from ..domain import ActionType, AgentAction, Observation, TaskSpec, TraceStep
 from .base import Agent
@@ -43,8 +44,16 @@ DEFAULT_RISKY_KEYWORDS: frozenset[str] = frozenset(
     }
 )
 
-#: Approver callback signature: return ``True`` to allow the action.
-Approver = Callable[[AgentAction], bool]
+class ApprovalDecision(StrEnum):
+    """Decision returned by an approver for a risky action."""
+
+    ALLOW_ONCE = "allow_once"
+    ALLOW_SESSION = "allow_session"
+    DENY = "deny"
+
+
+#: Approver callback signature for risky actions.
+Approver = Callable[[AgentAction], bool | ApprovalDecision]
 
 
 def allow_all(action: AgentAction) -> bool:
@@ -98,7 +107,10 @@ class ApprovalAgent:
     inner:
         The supervised agent.
     approver:
-        Callback consulted for risky actions. Defaults to :func:`deny_all`.
+        Callback consulted for risky actions. It may return ``True``/``False``
+        for one-off allow/deny decisions, or an :class:`ApprovalDecision`
+        value to allow once, allow the rest of the run, or deny. Defaults to
+        :func:`deny_all`.
     policy:
         Risk classifier. A default :class:`RiskPolicy` is used when omitted.
     """
@@ -113,6 +125,7 @@ class ApprovalAgent:
         self._inner = inner
         self._approver = approver
         self._policy = policy or RiskPolicy()
+        self._session_approved = False
 
     def next_action(
         self,
@@ -127,9 +140,22 @@ class ApprovalAgent:
         proposed = self._inner.next_action(task, observation, trace)
         if proposed.is_terminal or not self._policy.is_risky(proposed):
             return proposed
-        if self._approver(proposed):
+        if self._session_approved:
+            return proposed
+        decision = self._normalize_decision(self._approver(proposed))
+        if decision is ApprovalDecision.ALLOW_SESSION:
+            self._session_approved = True
+            return proposed
+        if decision is ApprovalDecision.ALLOW_ONCE:
             return proposed
         target = proposed.selector or (proposed.x, proposed.y)
         return AgentAction.fail(
             f"Risky action '{proposed.type.value}' on {target} was not approved."
         )
+
+    @staticmethod
+    def _normalize_decision(decision: bool | ApprovalDecision) -> ApprovalDecision:
+        """Coerce legacy boolean approvers into explicit approval decisions."""
+        if isinstance(decision, ApprovalDecision):
+            return decision
+        return ApprovalDecision.ALLOW_ONCE if decision else ApprovalDecision.DENY

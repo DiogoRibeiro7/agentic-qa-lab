@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agentic_qa_lab.agents import (
+    ApprovalDecision,
     ApprovalAgent,
     ReflectiveAgent,
     RiskPolicy,
@@ -127,6 +128,20 @@ def test_approver_receives_the_action() -> None:
 
     risky = AgentAction.click("#submit")
     ApprovalAgent(StubAgent(risky), approver=spy).next_action(_task(), _obs(), [])
+    assert seen == [risky]
+
+
+def test_allow_session_skips_later_prompts() -> None:
+    seen: list[AgentAction] = []
+    risky = AgentAction.click("#delete")
+
+    def approve_session(action: AgentAction) -> ApprovalDecision:
+        seen.append(action)
+        return ApprovalDecision.ALLOW_SESSION
+
+    agent = ApprovalAgent(StubAgent(risky), approver=approve_session)
+    assert agent.next_action(_task(), _obs(), []).type is ActionType.CLICK
+    assert agent.next_action(_task(), _obs(), []).type is ActionType.CLICK
     assert seen == [risky]
 
 

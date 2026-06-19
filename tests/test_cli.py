@@ -173,6 +173,31 @@ def test_run_require_approval_confirmed_succeeds(
     assert "success" in result.output
 
 
+def test_run_require_approval_approve_all_reuses_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        "task_id: risky-twice\n"
+        "goal: delete twice\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: click, selector: '#delete-account'}\n"
+        "  - {type: click, selector: '#submit-payment'}\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+    _patch_launch(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["run", "--task", str(path), "--require-approval", "--out-dir", str(tmp_path / "o")],
+        input="a\n",
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output.count("Approve risky action") == 1
+
+
 def test_run_help_lists_command() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0

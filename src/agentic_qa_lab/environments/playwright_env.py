@@ -114,20 +114,28 @@ class PlaywrightEnvironment(BrowserEnvironment):
 
     def observe(self) -> Observation:
         """Capture URL, title, DOM, and (optionally) a screenshot."""
+        start = time.perf_counter()
         screenshot_path: str | None = None
         if self._screenshot_dir is not None:
             target = self._screenshot_dir / f"step_{self._step:04d}.png"
             self._page.screenshot(path=str(target))
             screenshot_path = str(target)
 
+        url = self._page.url
+        title = self._safe_title()
+        dom = self._safe_content()
+        visible = self._safe_visible_text()
+        capture_ms = (time.perf_counter() - start) * 1000.0
+
         observation = Observation(
             step=self._step,
-            url=self._page.url,
-            title=self._safe_title(),
-            dom_snapshot=self._safe_content(),
-            visible_text=self._safe_visible_text(),
+            url=url,
+            title=title,
+            dom_snapshot=dom,
+            visible_text=visible,
             screenshot_path=screenshot_path,
             timestamp=time.time(),
+            capture_ms=capture_ms,
             viewport=self._viewport,
         )
         return observation

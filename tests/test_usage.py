@@ -109,11 +109,19 @@ def test_metered_client_falls_back_to_estimate_without_usage() -> None:
 # --------------------------------------------------------------------------- #
 # Metrics: latency + cost aggregation
 # --------------------------------------------------------------------------- #
-def _run_with_latencies(latencies: list[float], *, tokens: int = 0, cost: float = 0.0) -> RunResult:
+def _run_with_latencies(
+    latencies: list[float],
+    *,
+    tokens: int = 0,
+    cost: float = 0.0,
+    obs_ms: float = 0.0,
+) -> RunResult:
     steps = [
         TraceStep(
             index=i,
-            observation=Observation(step=i, url="https://e.com/", timestamp=1.0 + i),
+            observation=Observation(
+                step=i, url="https://e.com/", timestamp=1.0 + i, capture_ms=obs_ms
+            ),
             action=AgentAction.click("#x"),
             result=ActionResult.ok(duration_ms=ms),
         )
@@ -134,14 +142,16 @@ def _run_with_latencies(latencies: list[float], *, tokens: int = 0, cost: float 
 
 def test_summary_includes_latency_and_cost() -> None:
     results = [
-        _run_with_latencies([10.0, 20.0, 30.0], tokens=100, cost=0.5),
-        _run_with_latencies([40.0, 100.0], tokens=50, cost=0.25),
+        _run_with_latencies([10.0, 20.0, 30.0], tokens=100, cost=0.5, obs_ms=5.0),
+        _run_with_latencies([40.0, 100.0], tokens=50, cost=0.25, obs_ms=15.0),
     ]
     summary = compute_summary(results)
 
     # latencies pooled across all steps: [10,20,30,40,100]
     assert summary.mean_step_latency_ms == 40.0
     assert summary.p95_step_latency_ms == 100.0
+    # observation latencies pooled: [5,5,5,15,15] -> mean 9
+    assert summary.mean_observation_latency_ms == 9.0
     assert summary.total_tokens == 150
     assert summary.total_cost_usd == 0.75
 
