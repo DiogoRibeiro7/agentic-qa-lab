@@ -10,7 +10,7 @@ the planner transparently.
 
 from __future__ import annotations
 
-from .llm import LLMClient, LLMMessage
+from .llm import LLMClient, LLMMessage, Usage
 
 #: Rough characters-per-token ratio used to estimate token counts.
 CHARS_PER_TOKEN = 4
@@ -82,8 +82,17 @@ class MeteredClient:
         self._meter = meter
 
     def complete(self, messages: list[LLMMessage]) -> str:
-        """Delegate to the inner client and record estimated token usage."""
-        input_tokens = sum(estimate_tokens(m.content) for m in messages)
+        """Delegate to the inner client and record token usage.
+
+        Prefers the real ``usage`` the inner client exposes via a ``last_usage``
+        attribute (set by :class:`OpenAICompatibleClient`); falls back to a
+        length-based estimate when the provider does not report usage.
+        """
         reply = self._inner.complete(messages)
-        self._meter.record(input_tokens, estimate_tokens(reply))
+        usage: Usage | None = getattr(self._inner, "last_usage", None)
+        if usage is not None:
+            self._meter.record(usage.input_tokens, usage.output_tokens)
+        else:
+            input_tokens = sum(estimate_tokens(m.content) for m in messages)
+            self._meter.record(input_tokens, estimate_tokens(reply))
         return reply

@@ -19,6 +19,7 @@ from .llm import (
     LLMConfigError,
     LLMMessage,
     OpenAICompatibleClient,
+    Usage,
 )
 from .memory import FailedTarget, MemorySummary, summarize_trace
 from .planner import LLMPlannerAgent, ObservationMode
@@ -45,6 +46,7 @@ __all__ = [
     "RuleBasedAgent",
     "Runner",
     "TokenMeter",
+    "Usage",
     "allow_all",
     "deny_all",
     "estimate_tokens",

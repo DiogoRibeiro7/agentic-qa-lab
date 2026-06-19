@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentic_qa_lab.agents import LLMMessage, MeteredClient, TokenMeter, estimate_tokens
+from agentic_qa_lab.agents import LLMMessage, MeteredClient, TokenMeter, Usage, estimate_tokens
 from agentic_qa_lab.domain import (
     ActionResult,
     AgentAction,
@@ -69,6 +69,41 @@ def test_metered_client_records_usage_and_passes_through() -> None:
     assert meter.input_tokens == 100
     assert meter.output_tokens == 1
     assert meter.calls == 1
+
+
+class UsageReportingLLM:
+    """Inner client that reports real usage via ``last_usage``."""
+
+    def __init__(self, reply: str, usage: Usage) -> None:
+        self._reply = reply
+        self.last_usage = usage
+
+    def complete(self, messages: list[LLMMessage]) -> str:
+        return self._reply
+
+
+def test_metered_client_prefers_real_usage_over_estimate() -> None:
+    meter = TokenMeter(price_per_1k_input=1.0, price_per_1k_output=1.0)
+    # Real usage is wildly different from what length estimation would give,
+    # so a match proves the real numbers were used.
+    inner = UsageReportingLLM("reply", Usage(input_tokens=4242, output_tokens=99))
+    client = MeteredClient(inner, meter)
+
+    client.complete([LLMMessage(role="user", content="a" * 400)])
+
+    assert meter.input_tokens == 4242
+    assert meter.output_tokens == 99
+
+
+def test_metered_client_falls_back_to_estimate_without_usage() -> None:
+    meter = TokenMeter()
+    inner = EchoLLM("ok")  # no last_usage attribute
+    client = MeteredClient(inner, meter)
+
+    client.complete([LLMMessage(role="user", content="a" * 400)])
+
+    assert meter.input_tokens == 100  # estimated from length
+    assert meter.output_tokens == 1
 
 
 # --------------------------------------------------------------------------- #

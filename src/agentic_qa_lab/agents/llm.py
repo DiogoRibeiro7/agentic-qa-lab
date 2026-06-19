@@ -20,6 +20,26 @@ from typing import Any, Literal, Protocol, runtime_checkable
 Role = Literal["system", "user", "assistant"]
 
 
+@dataclass(frozen=True)
+class Usage:
+    """Token usage reported by a provider for a single completion."""
+
+    input_tokens: int
+    output_tokens: int
+
+
+def _usage_from_response(body: dict[str, Any]) -> Usage | None:
+    """Extract an OpenAI-style ``usage`` block, or ``None`` if absent."""
+    usage = body.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    prompt = usage.get("prompt_tokens")
+    completion = usage.get("completion_tokens")
+    if prompt is None or completion is None:
+        return None
+    return Usage(input_tokens=int(prompt), output_tokens=int(completion))
+
+
 def _image_data_uri(path: str | Path) -> str:
     """Read a local image file and return a base64-encoded data URI.
 
@@ -141,6 +161,9 @@ class OpenAICompatibleClient:
         self._model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
         self._temperature = temperature
         self._timeout = timeout
+        #: Token usage reported by the most recent :meth:`complete` call, when
+        #: the provider returned a ``usage`` block (``None`` otherwise).
+        self.last_usage: Usage | None = None
 
     def complete(self, messages: list[LLMMessage]) -> str:
         """POST ``messages`` to the chat endpoint and return the reply text.
@@ -171,4 +194,5 @@ class OpenAICompatibleClient:
         )
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
             body = json.loads(response.read().decode("utf-8"))
+        self.last_usage = _usage_from_response(body)
         return _extract_completion_content(body)

@@ -366,9 +366,10 @@ Runs are costed and timed so benchmarks compare more than success rate.
   exposes `step_latency_ms`, and `BenchmarkSummary` adds `mean_step_latency_ms`
   and `p95_step_latency_ms` (nearest-rank tail) pooled across all steps.
 - **Cost** is metered at the client boundary. `MeteredClient` wraps any
-  `LLMClient` and records token usage into a `TokenMeter`; tokens are estimated
-  from text length (no tokenizer dependency) and priced via
-  `price_per_1k_input`/`price_per_1k_output`. `RunResult` carries
+  `LLMClient` and records token usage into a `TokenMeter`; it uses the real
+  `usage` the provider returns (exposed by `OpenAICompatibleClient.last_usage`)
+  and falls back to a length-based estimate only when none is reported. Tokens
+  are priced via `price_per_1k_input`/`price_per_1k_output`. `RunResult` carries
   `total_tokens`/`cost_usd`, and the summary aggregates `total_tokens` and
   `total_cost_usd`. The benchmark CSV/JSON include per-run `tokens` and
   `cost_usd` columns.

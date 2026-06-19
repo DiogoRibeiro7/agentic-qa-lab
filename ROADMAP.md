@@ -61,9 +61,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ **No committed `poetry.lock`.** CI re-resolves dependencies on every run,
   so a transitive release can break the build (as happened with click 8.2).
   Commit a lock file and update it deliberately.
-- ⬜ **Token counts are estimated, not measured.** `MeteredClient` approximates
-  tokens by character count. Read real `usage` from the provider response when
-  available and fall back to the estimate otherwise.
+- ✅ **Token counts are estimated, not measured.** `OpenAICompatibleClient` now
+  records the provider's `usage` block, and `MeteredClient` records those real
+  token counts when present, falling back to the length-based estimate only
+  when the provider reports none.
 - ⬜ **Per-action latency excludes observation cost.** `duration_ms` times only
   `execute`; screenshot/DOM capture in `observe` is unmeasured. Add an
   observation-latency field.
