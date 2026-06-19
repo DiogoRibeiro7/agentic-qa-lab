@@ -171,12 +171,25 @@ agent = LLMPlannerAgent(OpenAICompatibleClient())
 - **`export_results`** writes `benchmark_summary.csv` (one row per run) and
   `benchmark_summary.json` (summary + per-run detail).
 
-Run the baseline from the CLI:
+Run a **single task** end-to-end, or a whole **benchmark**, from the CLI:
 
 ```bash
 playwright install chromium
+
+# One task with the rule-based baseline; writes artifacts/runs/<task_id>.jsonl
+agentic-qa run --task tasks/example_login.yaml
+
+# One task with the LLM planner, combined grounding, and the repair loop
+agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --reflect
+
+# Batch benchmark with summary CSV/JSON
 agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
 ```
+
+`run` exits non-zero when the task does not succeed, so it composes in scripts
+and CI. `--agent` selects `rule` or `llm`; `--mode` sets the LLM grounding
+channel; `--reflect` wraps the agent in the repair loop (and lets failed actions
+stay in the trace for recovery).
 
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)

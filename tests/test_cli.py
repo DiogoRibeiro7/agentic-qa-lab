@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+from typer.testing import CliRunner
+
+from agentic_qa_lab import cli
+from agentic_qa_lab.agents import LLMPlannerAgent, ObservationMode, RuleBasedAgent
+from agentic_qa_lab.cli import AgentKind, app, build_agent
+from agentic_qa_lab.domain import ActionResult, AgentAction, Observation, TaskSpec
+from agentic_qa_lab.environments import BrowserEnvironment, PlaywrightEnvironment
+from agentic_qa_lab.evaluation import BenchmarkCase
+
+runner = CliRunner()
+
+
+class FakeEnv(BrowserEnvironment):
+    """Headless-free env: every action succeeds; DOM shows the success marker."""
+
+    def __init__(self) -> None:
+        self._step = 0
+
+    def _obs(self) -> Observation:
+        return Observation(
+            step=self._step,
+            url="https://e.com/",
+            dom_snapshot="<html>Welcome</html>",
+            timestamp=1.0 + self._step,
+        )
+
+    def open(self, url: str) -> Observation:
+        return self._obs()
+
+    def observe(self) -> Observation:
+        self._step += 1
+        return self._obs()
+
+    def execute(self, action: AgentAction) -> ActionResult:
+        return ActionResult.ok()
+
+    def close(self) -> None:
+        pass
+
+
+def _case() -> BenchmarkCase:
+    return BenchmarkCase(
+        task=TaskSpec(task_id="t", goal="g", start_url="https://e.com/"),
+        plan=[AgentAction.finish("done")],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# build_agent
+# --------------------------------------------------------------------------- #
+def test_build_rule_agent() -> None:
+    agent = build_agent(_case(), AgentKind.RULE, ObservationMode.DOM_ONLY)
+    assert isinstance(agent, RuleBasedAgent)
+
+
+def test_build_llm_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+    agent = build_agent(_case(), AgentKind.LLM, ObservationMode.COMBINED)
+    assert isinstance(agent, LLMPlannerAgent)
+
+
+# --------------------------------------------------------------------------- #
+# `run` command (browser launch monkeypatched)
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def task_file(tmp_path: Path) -> Path:
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        "task_id: cli-demo\n"
+        "goal: finish quickly\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _patch_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_launch(**_kwargs: Any) -> FakeEnv:
+        return FakeEnv()
+
+    monkeypatch.setattr(PlaywrightEnvironment, "launch", staticmethod(fake_launch))
+
+
+def test_run_command_writes_trace(
+    monkeypatch: pytest.MonkeyPatch, task_file: Path, tmp_path: Path
+) -> None:
+    _patch_launch(monkeypatch)
+    out_dir = tmp_path / "out"
+
+    result = runner.invoke(app, ["run", "--task", str(task_file), "--out-dir", str(out_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "success" in result.output
+    trace = out_dir / "cli-demo.jsonl"
+    assert trace.exists()
+    records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+    assert records[-1]["record"] == "summary"
+    assert records[-1]["status"] == "success"
+
+
+def test_run_command_exits_nonzero_on_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A task whose success_selector is never satisfied -> finish resolves to failure.
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        "task_id: doomed\n"
+        "goal: never succeeds\n"
+        "start_url: https://e.com/\n"
+        "success_selector: NEVER_PRESENT\n"
+        "plan:\n"
+        "  - {type: finish, reason: premature}\n",
+        encoding="utf-8",
+    )
+    _patch_launch(monkeypatch)
+
+    result = runner.invoke(app, ["run", "--task", str(path), "--out-dir", str(tmp_path / "o")])
+    assert result.exit_code == 1
+
+
+def test_run_help_lists_command() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "run" in result.output
+    assert "benchmark" in result.output
+
+
+def test_cli_module_has_app() -> None:
+    assert hasattr(cli, "app")
