@@ -133,9 +133,10 @@ backend can be plugged in without touching the agent logic.
 
 - **`OpenAICompatibleClient`** — talks to any OpenAI-style
   `/chat/completions` endpoint using only the standard library. It is
-  configured entirely through environment variables: `LLM_API_KEY` (required),
-  `LLM_BASE_URL` (default `https://api.openai.com/v1`), and `LLM_MODEL`
-  (default `gpt-4o-mini`). It supports both plain text completions and
+  configured through typed `LLMSettings` loaded from environment variables or
+  `.env`: `LLM_API_KEY` (required), `LLM_BASE_URL` (default
+  `https://api.openai.com/v1`), and `LLM_MODEL` (default `gpt-4o-mini`). It
+  supports both plain text completions and
   schema-constrained JSON output via OpenAI `response_format=json_schema`.
 - **`LLMPlannerAgent`** — renders the goal, the current observation (URL,
   title, compact page summary, and a short action history into a chat prompt,
@@ -202,6 +203,9 @@ stay in the trace for recovery).
 
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)
+
+Configuration can also live in a local `.env`; `RuntimeSettings`,
+`LLMSettings`, and `APISettings` are loaded through `pydantic-settings`.
 
 ### Real-site tasks
 

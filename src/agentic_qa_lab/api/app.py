@@ -16,26 +16,21 @@ Endpoints
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from fastapi import FastAPI, HTTPException
 
+from ..config import APISettings
 from ..domain import RunResult, TraceStep
 from .storage import RunRecord, RunStore, RunSummary
-
-#: Environment variable naming the on-disk store directory.
-STORE_DIR_ENV = "AGENTIC_QA_STORE_DIR"
 
 
 def create_app(store: RunStore | None = None) -> FastAPI:
     """Build the FastAPI app, optionally with an injected :class:`RunStore`.
 
-    When ``store`` is omitted the directory is taken from the
-    ``AGENTIC_QA_STORE_DIR`` environment variable (default ``artifacts/runs``).
+    When ``store`` is omitted the directory is taken from
+    :class:`~agentic_qa_lab.config.APISettings`.
     """
     if store is None:
-        store = RunStore(Path(os.environ.get(STORE_DIR_ENV, "artifacts/runs")))
+        store = RunStore(APISettings().store_dir)
 
     app = FastAPI(title="agentic-qa-lab", version="0.1.0")
     app.state.store = store

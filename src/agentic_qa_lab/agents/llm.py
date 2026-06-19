@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
+
+from ..config import LLMSettings
 
 Role = Literal["system", "user", "assistant"]
 
@@ -170,12 +171,19 @@ class OpenAICompatibleClient:
         Per-request timeout in seconds.
     """
 
-    def __init__(self, *, temperature: float = 0.0, timeout: float = 30.0) -> None:
-        self._api_key = os.environ.get("LLM_API_KEY")
-        self._base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        self._model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-        self._temperature = temperature
-        self._timeout = timeout
+    def __init__(
+        self,
+        settings: LLMSettings | None = None,
+        *,
+        temperature: float | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        config = settings or LLMSettings()
+        self._api_key = config.api_key
+        self._base_url = config.base_url
+        self._model = config.model
+        self._temperature = config.temperature if temperature is None else temperature
+        self._timeout = config.timeout if timeout is None else timeout
         #: Token usage reported by the most recent :meth:`complete` call, when
         #: the provider returned a ``usage`` block (``None`` otherwise).
         self.last_usage: Usage | None = None

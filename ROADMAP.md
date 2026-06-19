@@ -92,8 +92,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   before falling back to free-text JSON parsing.
 - ✅ **Coverage gate:** pytest now enforces `--cov-fail-under=90`, so CI fails
   when total coverage regresses below the agreed floor.
-- ⬜ **Typed config via env:** load `RuntimeSettings`/LLM config from `.env`
-  with `pydantic-settings` rather than ad-hoc `os.environ` reads.
+- ✅ **Typed config via env:** `RuntimeSettings`, `LLMSettings`, and
+  `APISettings` now load from environment variables or `.env` via
+  `pydantic-settings`; runtime code no longer reads `os.environ` ad hoc for LLM
+  or API store configuration.
 - ⬜ **Docs:** publish API/usage docs (mkdocs) and add a README CI badge.
 
 ## New features ⬜

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from agentic_qa_lab.agents.llm import LLMMessage, OpenAICompatibleClient
+from agentic_qa_lab.config import LLMSettings
 
 
 class _FakeResponse:
@@ -53,3 +54,20 @@ def test_openai_client_complete_json_sends_response_format(
     assert captured["payload"]["response_format"]["json_schema"]["name"] == "agent_action"
     assert client.last_usage is not None
     assert client.last_usage.input_tokens == 12
+
+
+def test_openai_client_uses_explicit_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+
+    settings = LLMSettings(
+        api_key="sk-explicit",
+        base_url="https://example.com/v1",
+        model="demo-model",
+        timeout=12.0,
+        temperature=0.5,
+    )
+    client = OpenAICompatibleClient(settings)
+
+    assert client._api_key == "sk-explicit"  # noqa: SLF001 - constructor wiring test
+    assert client._base_url == "https://example.com/v1"  # noqa: SLF001
+    assert client._model == "demo-model"  # noqa: SLF001

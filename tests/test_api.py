@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agentic_qa_lab.api import RunStore, create_app
+from agentic_qa_lab.api.app import create_app as create_default_app
 from agentic_qa_lab.domain import (
     ActionResult,
     AgentAction,
@@ -95,3 +96,15 @@ def test_create_rejects_invalid_run(client: TestClient) -> None:
     bad = _run().model_dump(mode="json")
     bad["failure_category"] = "timeout"
     assert client.post("/runs", json=bad).status_code == 422
+
+
+def test_create_app_uses_store_dir_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("AGENTIC_QA_STORE_DIR", str(tmp_path / "custom-runs"))
+
+    app = create_default_app()
+
+    root = app.state.store._root  # noqa: SLF001 - validates settings wiring
+    assert root == tmp_path / "custom-runs"
