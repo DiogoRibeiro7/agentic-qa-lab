@@ -370,6 +370,26 @@ agentic-qa run --task tasks/example_login.yaml --agent llm \
 
 This project shows that you can build agents that act in real software environments, not only generate text.
 
+## Try it: real local demo
+
+A self-contained demo drives the bundled [`examples/pages/login.html`](examples/pages/login.html)
+over a `file://` URL — a real browser, no network, no test server:
+
+```bash
+playwright install chromium     # one-time
+python examples/local_login_demo.py
+```
+
+It fills the form, submits, reaches the welcome screen, and writes the trace to
+`artifacts/runs/local-login.jsonl` plus a screenshot per step. The final step
+looks like this (a genuine capture from the run):
+
+![Local login demo — welcome screen](docs/login_demo.png)
+
+The same flow is covered by [`tests/test_e2e.py`](tests/test_e2e.py), which runs
+the real browser when Chromium is installed and skips cleanly otherwise (so the
+unit suite and CI stay green without browser binaries).
+
 ## Quickstart
 
 ### Prerequisites
