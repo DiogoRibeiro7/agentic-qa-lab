@@ -20,6 +20,7 @@ from .llm import (
     LLMConfigError,
     LLMMessage,
     OpenAICompatibleClient,
+    StructuredLLMClient,
     Usage,
 )
 from .memory import FailedTarget, MemorySummary, summarize_trace
@@ -39,6 +40,7 @@ __all__ = [
     "LLMConfigError",
     "LLMMessage",
     "LLMPlannerAgent",
+    "StructuredLLMClient",
     "MemorySummary",
     "MeteredClient",
     "ObservationMode",

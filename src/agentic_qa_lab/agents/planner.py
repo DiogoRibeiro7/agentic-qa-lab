@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import re
 from enum import StrEnum
+from typing import Any
 
 from pydantic import ValidationError
 
 from ..domain import AgentAction, Observation, TaskSpec, TraceStep
-from .llm import LLMClient, LLMMessage
+from .llm import LLMClient, LLMMessage, StructuredLLMClient
 from .memory import summarize_trace
 from .usage import estimate_tokens
 
@@ -26,6 +27,25 @@ DEFAULT_HISTORY_TOKEN_BUDGET = 160
 DEFAULT_MEMORY_TOKEN_BUDGET = 120
 DEFAULT_VISIBLE_TEXT_CHAR_LIMIT = 1200
 DEFAULT_INTERACTIVE_SNIPPET_LIMIT = 12
+
+ACTION_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["click", "type_text", "press_key", "wait", "finish", "fail"],
+        },
+        "selector": {"type": "string"},
+        "x": {"type": "integer", "minimum": 0},
+        "y": {"type": "integer", "minimum": 0},
+        "text": {"type": "string"},
+        "key": {"type": "string"},
+        "duration_ms": {"type": "integer", "minimum": 1},
+        "reason": {"type": "string"},
+    },
+    "required": ["type"],
+    "additionalProperties": False,
+}
 
 SYSTEM_PROMPT = """\
 You are a UI-testing agent that controls a web browser one action at a time.
@@ -160,14 +180,22 @@ class LLMPlannerAgent:
         messages = self._build_messages(task, observation, trace)
         last_error = ""
         for _ in range(self._max_parse_retries + 1):
-            reply = self._client.complete(messages)
             try:
+                if isinstance(self._client, StructuredLLMClient):
+                    data = self._client.complete_json(
+                        messages,
+                        schema_name="agent_action",
+                        schema=ACTION_RESPONSE_SCHEMA,
+                    )
+                    return AgentAction.model_validate(data)
+                reply = self._client.complete(messages)
                 return self._parse_action(reply)
             except (ValueError, ValidationError) as exc:
                 last_error = str(exc)
+                reply_text = json.dumps(data) if "data" in locals() else reply
                 messages = [
                     *messages,
-                    LLMMessage(role="assistant", content=reply),
+                    LLMMessage(role="assistant", content=reply_text),
                     LLMMessage(
                         role="user",
                         content=(

@@ -135,15 +135,19 @@ backend can be plugged in without touching the agent logic.
   `/chat/completions` endpoint using only the standard library. It is
   configured entirely through environment variables: `LLM_API_KEY` (required),
   `LLM_BASE_URL` (default `https://api.openai.com/v1`), and `LLM_MODEL`
-  (default `gpt-4o-mini`).
+  (default `gpt-4o-mini`). It supports both plain text completions and
+  schema-constrained JSON output via OpenAI `response_format=json_schema`.
 - **`LLMPlannerAgent`** — renders the goal, the current observation (URL,
   title, compact page summary, and a short action history into a chat prompt,
   then parses the reply into a strictly-validated `AgentAction`. Instead of
   dumping raw HTML, the prompt prefers visible page text plus a compact summary
   of interactive elements, and it caps history/memory blocks by approximate
-  token budget. JSON inside a ```` ```json ```` fence is supported. Invalid
-  replies trigger a correction re-prompt up to `max_parse_retries`; if the
-  model still fails, the agent emits a terminal `fail` so the run ends cleanly.
+  token budget. When the client supports structured completion, the planner
+  requests an `AgentAction` through JSON Schema rather than free-text JSON;
+  otherwise it falls back to parsing JSON inside plain text / ```json fences.
+  Invalid replies trigger a correction re-prompt up to `max_parse_retries`; if
+  the model still fails, the agent emits a terminal `fail` so the run ends
+  cleanly.
 
 ```bash
 export LLM_API_KEY=sk-...           # any OpenAI-compatible provider

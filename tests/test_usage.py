@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from agentic_qa_lab.agents import LLMMessage, MeteredClient, TokenMeter, Usage, estimate_tokens
 from agentic_qa_lab.domain import (
     ActionResult,
@@ -82,6 +84,27 @@ class UsageReportingLLM:
         return self._reply
 
 
+class StructuredEchoLLM:
+    """Structured-capable stub returning a fixed JSON object."""
+
+    def __init__(self, reply: dict[str, Any]) -> None:
+        self._reply = reply
+        self.calls = 0
+
+    def complete(self, messages: list[LLMMessage]) -> str:
+        raise AssertionError("plain completion should not be used")
+
+    def complete_json(
+        self,
+        messages: list[LLMMessage],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        self.calls += 1
+        return self._reply
+
+
 def test_metered_client_prefers_real_usage_over_estimate() -> None:
     meter = TokenMeter(price_per_1k_input=1.0, price_per_1k_output=1.0)
     # Real usage is wildly different from what length estimation would give,
@@ -104,6 +127,23 @@ def test_metered_client_falls_back_to_estimate_without_usage() -> None:
 
     assert meter.input_tokens == 100  # estimated from length
     assert meter.output_tokens == 1
+
+
+def test_metered_client_records_structured_completion() -> None:
+    meter = TokenMeter()
+    inner = StructuredEchoLLM({"type": "click", "selector": "#go"})
+    client = MeteredClient(inner, meter)
+
+    reply = client.complete_json(
+        [LLMMessage(role="user", content="a" * 400)],
+        schema_name="agent_action",
+        schema={"type": "object"},
+    )
+
+    assert reply["type"] == "click"
+    assert inner.calls == 1
+    assert meter.input_tokens == 100
+    assert meter.output_tokens >= 1
 
 
 # --------------------------------------------------------------------------- #

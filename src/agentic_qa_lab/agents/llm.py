@@ -129,6 +129,21 @@ class LLMClient(Protocol):
         ...
 
 
+@runtime_checkable
+class StructuredLLMClient(Protocol):
+    """Optional JSON-schema completion capability for chat clients."""
+
+    def complete_json(
+        self,
+        messages: list[LLMMessage],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return a JSON object conforming to ``schema``."""
+        ...
+
+
 class LLMConfigError(RuntimeError):
     """Raised when required LLM configuration is missing."""
 
@@ -173,6 +188,41 @@ class OpenAICompatibleClient:
         LLMConfigError
             If ``LLM_API_KEY`` is not set.
         """
+        body = self._post_chat(messages)
+        return _extract_completion_content(body)
+
+    def complete_json(
+        self,
+        messages: list[LLMMessage],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return a JSON object using OpenAI ``response_format=json_schema``."""
+        body = self._post_chat(
+            messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+        )
+        raw = _extract_completion_content(body)
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("Structured completion JSON must be an object.")
+        return data
+
+    def _post_chat(
+        self,
+        messages: list[LLMMessage],
+        *,
+        response_format: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """POST ``messages`` to the chat endpoint and return the decoded body."""
         if not self._api_key:
             raise LLMConfigError("LLM_API_KEY environment variable is not set.")
 
@@ -181,6 +231,8 @@ class OpenAICompatibleClient:
             "messages": [m.as_dict() for m in messages],
             "temperature": self._temperature,
         }
+        if response_format is not None:
+            payload_data["response_format"] = response_format
         payload = json.dumps(payload_data).encode("utf-8")
 
         request = urllib.request.Request(  # noqa: S310 - URL is operator-configured
@@ -195,4 +247,6 @@ class OpenAICompatibleClient:
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
             body = json.loads(response.read().decode("utf-8"))
         self.last_usage = _usage_from_response(body)
-        return _extract_completion_content(body)
+        if not isinstance(body, dict):
+            raise ValueError("Completion response must be a JSON object.")
+        return body

@@ -86,8 +86,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Richer prompts:** `LLMPlannerAgent` now prefers visible page text plus a
   compact interactive-element summary instead of raw HTML dumps, and caps
   history/memory blocks by approximate token budget.
-- ⬜ **Structured LLM output:** use tool/function-calling or JSON-schema mode
-  instead of free-text JSON parsing to cut retry churn.
+- ✅ **Structured LLM output:** clients can now expose
+  `StructuredLLMClient.complete_json(...)`; `OpenAICompatibleClient` uses
+  OpenAI `response_format=json_schema`, and `LLMPlannerAgent` prefers that path
+  before falling back to free-text JSON parsing.
 - ⬜ **Coverage gate:** add a `--cov-fail-under` threshold in CI now that
   coverage sits around 90%.
 - ⬜ **Typed config via env:** load `RuntimeSettings`/LLM config from `.env`

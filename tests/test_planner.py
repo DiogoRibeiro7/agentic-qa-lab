@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from agentic_qa_lab.agents import LLMMessage, LLMPlannerAgent
 from agentic_qa_lab.domain import (
     ActionResult,
@@ -21,6 +23,27 @@ class FakeLLM:
 
     def complete(self, messages: list[LLMMessage]) -> str:
         self.prompts.append(messages)
+        return self._replies.pop(0)
+
+
+class StructuredFakeLLM:
+    """LLM stub that exposes schema-driven completions."""
+
+    def __init__(self, replies: list[dict[str, Any]]) -> None:
+        self._replies = list(replies)
+        self.prompts: list[list[LLMMessage]] = []
+        self.schemas: list[dict[str, Any]] = []
+
+    def complete_json(
+        self,
+        messages: list[LLMMessage],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        assert schema_name == "agent_action"
+        self.prompts.append(messages)
+        self.schemas.append(schema)
         return self._replies.pop(0)
 
 
@@ -162,3 +185,13 @@ def test_gives_up_with_fail_after_retries() -> None:
 
     assert action.type is ActionType.FAIL
     assert "no valid action" in (action.reason or "")
+
+
+def test_prefers_structured_completion_when_available() -> None:
+    llm = StructuredFakeLLM([{"type": "click", "selector": "#go"}])
+
+    action = LLMPlannerAgent(llm).next_action(_task(), _obs(), [])
+
+    assert action.type is ActionType.CLICK
+    assert action.selector == "#go"
+    assert llm.schemas[0]["required"] == ["type"]

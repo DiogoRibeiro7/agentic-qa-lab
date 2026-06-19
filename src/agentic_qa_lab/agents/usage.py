@@ -10,7 +10,9 @@ the planner transparently.
 
 from __future__ import annotations
 
-from .llm import LLMClient, LLMMessage, Usage
+from typing import Any
+
+from .llm import LLMClient, LLMMessage, StructuredLLMClient, Usage
 
 #: Rough characters-per-token ratio used to estimate token counts.
 CHARS_PER_TOKEN = 4
@@ -95,4 +97,23 @@ class MeteredClient:
         else:
             input_tokens = sum(estimate_tokens(m.content) for m in messages)
             self._meter.record(input_tokens, estimate_tokens(reply))
+        return reply
+
+    def complete_json(
+        self,
+        messages: list[LLMMessage],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Delegate structured completion and meter the call the same way."""
+        if not isinstance(self._inner, StructuredLLMClient):
+            raise TypeError("Inner client does not support structured completion.")
+        reply = self._inner.complete_json(messages, schema_name=schema_name, schema=schema)
+        usage: Usage | None = getattr(self._inner, "last_usage", None)
+        if usage is not None:
+            self._meter.record(usage.input_tokens, usage.output_tokens)
+        else:
+            input_tokens = sum(estimate_tokens(m.content) for m in messages)
+            self._meter.record(input_tokens, estimate_tokens(str(reply)))
         return reply
