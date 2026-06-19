@@ -69,9 +69,7 @@ class Runner:
             try:
                 action = agent.next_action(task, observation, steps)
             except Exception as exc:  # noqa: BLE001 - converted to a terminal result
-                steps.append(
-                    self._error_step(index, observation, str(exc))
-                )
+                steps.append(self._error_step(index, observation, str(exc)))
                 status, failure_category = RunStatus.ERROR, FailureCategory.AGENT_ERROR
                 break
 

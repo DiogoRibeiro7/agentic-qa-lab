@@ -214,6 +214,36 @@ docker compose up --build                            # api :8000, dashboard :850
 Dashboard screenshots live in [docs/](docs/) once you have run the stack and
 captured them (`docs/dashboard_comparison.png`, `docs/dashboard_trace.png`).
 
+## Vision-language reasoning
+
+Observations are multimodal, so the planner can ground on pixels as well as
+markup. `PlaywrightEnvironment` already writes a screenshot per step (set
+`screenshot_dir`), and the LLM layer attaches images via the OpenAI multimodal
+`content` format — an `LLMMessage` simply carries `images=(path, ...)`.
+
+`LLMPlannerAgent(observation_mode=...)` selects the grounding channel:
+
+- `ObservationMode.DOM_ONLY` — serialized DOM, no image (default).
+- `ObservationMode.SCREENSHOT_ONLY` — screenshot attached, DOM omitted; the
+  system prompt gains a visual-reasoning instruction.
+- `ObservationMode.COMBINED` — both; reconcile DOM selectors with the layout.
+
+```python
+from agentic_qa_lab.agents import LLMPlannerAgent, ObservationMode, OpenAICompatibleClient
+
+agent = LLMPlannerAgent(
+    OpenAICompatibleClient(),
+    observation_mode=ObservationMode.COMBINED,
+)
+```
+
+[`notebooks/vision_observation_modes.ipynb`](notebooks/vision_observation_modes.ipynb)
+compares the three modes on a toy benchmark with an offline mock VLM and
+analyzes where each fails: DOM-only misses wordless/canvas widgets,
+screenshot-only misreads exact field values, and combined covers both at a
+higher per-step token cost. Regenerate it with
+`python auxiliar/make_vision_notebook.py`.
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

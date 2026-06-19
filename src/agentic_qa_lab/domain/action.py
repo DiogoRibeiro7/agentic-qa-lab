@@ -84,9 +84,7 @@ class AgentAction(BaseModel):
         if self.type in {ActionType.CLICK, ActionType.TYPE_TEXT, ActionType.PRESS_KEY}:
             has_target = self.selector is not None or (self.x is not None and self.y is not None)
             if not has_target:
-                raise ValueError(
-                    f"Action '{self.type}' requires a selector or (x, y) coordinates."
-                )
+                raise ValueError(f"Action '{self.type}' requires a selector or (x, y) coordinates.")
         if self.type is ActionType.TYPE_TEXT and not self.text:
             raise ValueError("Action 'type_text' requires a non-empty text payload.")
         if self.type is ActionType.PRESS_KEY and not self.key:

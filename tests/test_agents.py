@@ -50,9 +50,7 @@ class FakeEnv(BrowserEnvironment):
     def execute(self, action: AgentAction) -> ActionResult:
         self.executed.append(action)
         if action.selector is not None and action.selector in self._fail:
-            return ActionResult.failed(
-                "boom", category=FailureCategory.ELEMENT_NOT_FOUND
-            )
+            return ActionResult.failed("boom", category=FailureCategory.ELEMENT_NOT_FOUND)
         return ActionResult.ok()
 
     def close(self) -> None:

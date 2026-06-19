@@ -9,18 +9,28 @@ environment variables.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import urllib.request
-from dataclasses import dataclass
-from typing import Literal, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal, Protocol, runtime_checkable
 
 Role = Literal["system", "user", "assistant"]
 
 
+def _image_data_uri(path: str | Path) -> str:
+    """Read an image file and return a base64 ``data:`` URI."""
+    raw = Path(path).read_bytes()
+    suffix = Path(path).suffix.lower().lstrip(".") or "png"
+    encoded = base64.b64encode(raw).decode("ascii")
+    return f"data:image/{suffix};base64,{encoded}"
+
+
 @dataclass(frozen=True)
 class LLMMessage:
-    """A single chat message.
+    """A single chat message, optionally carrying image attachments.
 
     Attributes
     ----------
@@ -28,14 +38,27 @@ class LLMMessage:
         One of ``system``, ``user``, or ``assistant``.
     content:
         The message text.
+    images:
+        Paths to image files attached to the message. When present the message
+        is serialized using the OpenAI multimodal ``content`` parts format.
     """
 
     role: Role
     content: str
+    images: tuple[str, ...] = field(default_factory=tuple)
 
-    def as_dict(self) -> dict[str, str]:
-        """Return the message as an OpenAI-style ``{role, content}`` dict."""
-        return {"role": self.role, "content": self.content}
+    def as_dict(self) -> dict[str, Any]:
+        """Return the message in OpenAI ``/chat/completions`` shape.
+
+        Text-only messages use a plain string ``content``; messages with images
+        use the list-of-parts (``text`` + ``image_url``) multimodal format.
+        """
+        if not self.images:
+            return {"role": self.role, "content": self.content}
+        parts: list[dict[str, Any]] = [{"type": "text", "text": self.content}]
+        for image in self.images:
+            parts.append({"type": "image_url", "image_url": {"url": _image_data_uri(image)}})
+        return {"role": self.role, "content": parts}
 
 
 @runtime_checkable

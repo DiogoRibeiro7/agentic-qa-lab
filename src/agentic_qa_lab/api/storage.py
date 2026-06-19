@@ -68,9 +68,7 @@ class RunStore:
     def create(self, run: RunResult) -> RunRecord:
         """Store ``run`` under a fresh id and return the resulting record."""
         record = RunRecord(run_id=self._id_factory(), run=run)
-        self._path(record.run_id).write_text(
-            record.model_dump_json(indent=2), encoding="utf-8"
-        )
+        self._path(record.run_id).write_text(record.model_dump_json(indent=2), encoding="utf-8")
         return record
 
     def get(self, run_id: str) -> RunRecord:

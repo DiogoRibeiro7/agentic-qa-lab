@@ -13,7 +13,7 @@ from .llm import (
     LLMMessage,
     OpenAICompatibleClient,
 )
-from .planner import LLMPlannerAgent
+from .planner import LLMPlannerAgent, ObservationMode
 from .rule_based import RuleBasedAgent
 from .runner import Runner, write_trace_jsonl
 
@@ -23,6 +23,7 @@ __all__ = [
     "LLMConfigError",
     "LLMMessage",
     "LLMPlannerAgent",
+    "ObservationMode",
     "OpenAICompatibleClient",
     "RuleBasedAgent",
     "Runner",

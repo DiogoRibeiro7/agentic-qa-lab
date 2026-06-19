@@ -46,7 +46,5 @@ class TaskSpec(BaseModel):
         """Ensure ``start_url`` looks like a navigable target."""
         allowed_prefixes = ("http://", "https://", "file://", "about:")
         if not value.startswith(allowed_prefixes):
-            raise ValueError(
-                "start_url must begin with one of: " + ", ".join(allowed_prefixes)
-            )
+            raise ValueError("start_url must begin with one of: " + ", ".join(allowed_prefixes))
         return value

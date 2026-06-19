@@ -10,6 +10,7 @@ a terminal ``fail`` so the run ends cleanly.
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 
 from pydantic import ValidationError
 
@@ -39,6 +40,37 @@ Rules:
 - Use "finish" when the goal is achieved, "fail" when it cannot be.
 Return only the JSON object, optionally inside a ```json code fence.
 """
+
+#: Appended to the system prompt when a screenshot is attached.
+VISUAL_HINT = """\
+
+A SCREENSHOT of the current page is attached. Reason about the visual layout —
+the position, labels, and state of buttons, inputs, and text — to choose the
+next action. When the DOM is also provided, reconcile both; prefer stable CSS
+selectors, falling back to (x, y) coordinates read from the screenshot only
+when no selector is available.
+"""
+
+
+class ObservationMode(StrEnum):
+    """Which observation channels are sent to the model.
+
+    Used to compare grounding strategies (see the vision notebook).
+    """
+
+    DOM_ONLY = "dom_only"
+    SCREENSHOT_ONLY = "screenshot_only"
+    COMBINED = "combined"
+
+    @property
+    def uses_dom(self) -> bool:
+        """Whether this mode includes the DOM snapshot."""
+        return self in {ObservationMode.DOM_ONLY, ObservationMode.COMBINED}
+
+    @property
+    def uses_screenshot(self) -> bool:
+        """Whether this mode attaches the screenshot."""
+        return self in {ObservationMode.SCREENSHOT_ONLY, ObservationMode.COMBINED}
 
 
 def _extract_json_object(text: str) -> str:
@@ -76,6 +108,9 @@ class LLMPlannerAgent:
         giving up with a terminal ``fail``.
     dom_char_limit:
         Maximum number of DOM characters included in the prompt.
+    observation_mode:
+        Which observation channels to ground on — DOM text, the screenshot, or
+        both. Defaults to ``DOM_ONLY``.
     """
 
     def __init__(
@@ -84,10 +119,12 @@ class LLMPlannerAgent:
         *,
         max_parse_retries: int = 2,
         dom_char_limit: int = DEFAULT_DOM_CHAR_LIMIT,
+        observation_mode: ObservationMode = ObservationMode.DOM_ONLY,
     ) -> None:
         self._client = client
         self._max_parse_retries = max_parse_retries
         self._dom_char_limit = dom_char_limit
+        self._mode = observation_mode
 
     def next_action(
         self,
@@ -129,10 +166,23 @@ class LLMPlannerAgent:
         observation: Observation,
         trace: list[TraceStep],
     ) -> list[LLMMessage]:
-        """Assemble the system + user messages for one planning step."""
+        """Assemble the system + user messages for one planning step.
+
+        The screenshot is attached only in screenshot/combined modes and only
+        when the observation actually carries one.
+        """
+        system = SYSTEM_PROMPT
+        images: tuple[str, ...] = ()
+        if self._mode.uses_screenshot and observation.screenshot_path is not None:
+            system = SYSTEM_PROMPT + VISUAL_HINT
+            images = (observation.screenshot_path,)
         return [
-            LLMMessage(role="system", content=SYSTEM_PROMPT),
-            LLMMessage(role="user", content=self._render_state(task, observation, trace)),
+            LLMMessage(role="system", content=system),
+            LLMMessage(
+                role="user",
+                content=self._render_state(task, observation, trace),
+                images=images,
+            ),
         ]
 
     def _render_state(
@@ -141,20 +191,28 @@ class LLMPlannerAgent:
         observation: Observation,
         trace: list[TraceStep],
     ) -> str:
-        """Render task, observation, and recent history as prompt text."""
-        dom = (observation.dom_snapshot or "")[: self._dom_char_limit]
+        """Render task, observation, and recent history as prompt text.
+
+        The DOM block is included only when the observation mode uses it.
+        """
         history = self._render_history(trace)
         success = task.success_selector or "(none)"
-        return (
-            f"GOAL: {task.goal}\n"
-            f"SUCCESS_SELECTOR: {success}\n"
-            f"STEP: {len(trace)} / {task.max_steps}\n"
-            f"URL: {observation.url}\n"
-            f"TITLE: {observation.title or '(unknown)'}\n"
-            f"RECENT_ACTIONS:\n{history}\n"
-            f"DOM (truncated to {self._dom_char_limit} chars):\n{dom}\n\n"
-            "Choose the next action as a single JSON object."
-        )
+        lines = [
+            f"GOAL: {task.goal}",
+            f"SUCCESS_SELECTOR: {success}",
+            f"STEP: {len(trace)} / {task.max_steps}",
+            f"URL: {observation.url}",
+            f"TITLE: {observation.title or '(unknown)'}",
+            f"RECENT_ACTIONS:\n{history}",
+        ]
+        if self._mode.uses_dom:
+            dom = (observation.dom_snapshot or "")[: self._dom_char_limit]
+            lines.append(f"DOM (truncated to {self._dom_char_limit} chars):\n{dom}")
+        if self._mode.uses_screenshot:
+            attached = observation.screenshot_path is not None
+            lines.append(f"SCREENSHOT: {'attached' if attached else 'unavailable'}")
+        lines.append("\nChoose the next action as a single JSON object.")
+        return "\n".join(lines)
 
     @staticmethod
     def _render_history(trace: list[TraceStep], *, limit: int = 5) -> str:
