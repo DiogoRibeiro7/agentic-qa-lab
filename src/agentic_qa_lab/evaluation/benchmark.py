@@ -49,6 +49,8 @@ class BenchmarkRunner:
         for case in cases:
             agent = agent_factory(case)
             env = env_factory(case)
+            # Some environments are themselves context managers. Use a no-op
+            # context manager otherwise so the runner code can stay uniform.
             manager = env if isinstance(env, BrowserEnvironment) else nullcontext(env)
             with manager:
                 results.append(self._runner.run(case.task, agent, env))

@@ -105,9 +105,11 @@ def benchmark(
     console.print(f"Loaded [bold]{len(cases)}[/bold] task(s).")
 
     def make_agent(case: BenchmarkCase) -> RuleBasedAgent:
+        """Create the rule-based agent for a benchmark case."""
         return RuleBasedAgent(case.plan)
 
     def make_env(case: BenchmarkCase) -> PlaywrightEnvironment:
+        """Launch a fresh Playwright environment for a benchmark case."""
         return PlaywrightEnvironment.launch(headless=headless)
 
     results = BenchmarkRunner().run(cases, make_agent, make_env)
