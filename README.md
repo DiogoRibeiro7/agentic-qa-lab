@@ -244,6 +244,25 @@ screenshot-only misreads exact field values, and combined covers both at a
 higher per-step token cost. Regenerate it with
 `python auxiliar/make_vision_notebook.py`.
 
+## Self-reflection and repair
+
+`ReflectiveAgent` wraps any agent and adds a bounded recovery policy: when the
+inner agent re-proposes an action that just failed, it inserts a single settle
+`wait` and lets it retry; if the same action keeps failing past `max_attempts`,
+it stops with a terminal `fail` instead of looping. The policy is deterministic
+and inner-agent agnostic, so it composes with the baseline or the LLM planner.
+
+For the wrapper to own recovery, the `Runner` must not pre-empt it: construct it
+with `stop_on_action_failure=False` so a failed action stays in the trace and
+the loop continues (the default `True` keeps the original fail-fast behavior).
+
+```python
+from agentic_qa_lab.agents import ReflectiveAgent, Runner
+
+agent = ReflectiveAgent(inner_agent, max_attempts=3, settle_ms=500)
+run = Runner(stop_on_action_failure=False).run(task, agent, env)
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

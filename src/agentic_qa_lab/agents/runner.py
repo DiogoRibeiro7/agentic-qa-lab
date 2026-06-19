@@ -38,6 +38,11 @@ class Runner:
         for deterministic tests.
     wall_clock:
         Source of epoch seconds used for run timestamps.
+    stop_on_action_failure:
+        When ``True`` (default) a non-terminal action that fails after its
+        retries ends the run as ``failure``. Set ``False`` to let the agent
+        recover — the failure stays in the trace and the loop continues, so a
+        self-repairing agent (see :class:`ReflectiveAgent`) can react to it.
     """
 
     def __init__(
@@ -45,9 +50,11 @@ class Runner:
         *,
         monotonic: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time,
+        stop_on_action_failure: bool = True,
     ) -> None:
         self._monotonic = monotonic
         self._wall_clock = wall_clock
+        self._stop_on_action_failure = stop_on_action_failure
 
     def run(self, task: TaskSpec, agent: Agent, env: BrowserEnvironment) -> RunResult:
         """Run ``agent`` against ``env`` for ``task`` and return the result."""
@@ -80,6 +87,8 @@ class Runner:
             )
 
             terminal = self._resolve_terminal(task, action, result, observation)
+            if terminal is None and not result.success and self._stop_on_action_failure:
+                terminal = (RunStatus.FAILURE, result.failure_category)
             if terminal is not None:
                 status, failure_category = terminal
                 break
@@ -124,10 +133,11 @@ class Runner:
         result: ActionResult,
         observation: Observation,
     ) -> tuple[RunStatus, FailureCategory] | None:
-        """Map a step outcome to a terminal status, or ``None`` to continue."""
-        if not result.success:
-            return RunStatus.FAILURE, result.failure_category
+        """Map a step outcome to a terminal status, or ``None`` to continue.
 
+        A failed non-terminal action is *not* resolved here; that policy lives
+        in :meth:`run` so it can honour ``stop_on_action_failure``.
+        """
         if action.type is ActionType.FAIL:
             return RunStatus.FAILURE, FailureCategory.UNKNOWN
 

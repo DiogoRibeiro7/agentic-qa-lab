@@ -14,6 +14,7 @@ from .llm import (
     OpenAICompatibleClient,
 )
 from .planner import LLMPlannerAgent, ObservationMode
+from .reflective import ReflectiveAgent
 from .rule_based import RuleBasedAgent
 from .runner import Runner, write_trace_jsonl
 
@@ -25,6 +26,7 @@ __all__ = [
     "LLMPlannerAgent",
     "ObservationMode",
     "OpenAICompatibleClient",
+    "ReflectiveAgent",
     "RuleBasedAgent",
     "Runner",
     "write_trace_jsonl",
