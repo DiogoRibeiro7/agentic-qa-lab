@@ -146,6 +146,66 @@ def benchmark(
 
 
 @app.command()
+def record(
+    task_id: Annotated[str, typer.Option(help="Stable id for the recorded task file.")],
+    goal: Annotated[str, typer.Option(help="Goal text to store in the task file.")],
+    start_url: Annotated[str, typer.Option(help="URL to open before recording starts.")],
+    out_file: Annotated[
+        Path, typer.Option("--out-file", help="Output YAML/JSON task file to write.")
+    ],
+    success_selector: Annotated[
+        str | None,
+        typer.Option(help="Optional selector or visible text used as the success marker."),
+    ] = None,
+    finish_reason: Annotated[
+        str, typer.Option(help="Reason attached to the final recorded finish action.")
+    ] = "recorded session complete",
+    max_steps: Annotated[int, typer.Option(help="Task max_steps safeguard.")] = 25,
+    max_retries: Annotated[int, typer.Option(help="Task max_retries safeguard.")] = 2,
+    timeout_seconds: Annotated[float, typer.Option(help="Task timeout_seconds safeguard.")] = 120.0,
+    headless: Annotated[
+        bool,
+        typer.Option(help="Run the browser headless; headed is usually better for recording."),
+    ] = False,
+) -> None:
+    """Record a manual browser session into a reusable task file."""
+    from .domain import TaskSpec
+    from .evaluation import dump_case, record_case
+
+    task = TaskSpec(
+        task_id=task_id,
+        goal=goal,
+        start_url=start_url,
+        success_selector=success_selector,
+        max_steps=max_steps,
+        max_retries=max_retries,
+        timeout_seconds=timeout_seconds,
+    )
+
+    console.print(
+        "Recording manual session. Interact with the browser, then press Enter here to save."
+    )
+
+    case = record_case(
+        task,
+        finish_reason=finish_reason,
+        headless=headless,
+        wait_for_finish=lambda: typer.prompt(
+            "Press Enter when the manual flow is complete", default="", show_default=False
+        ),
+    )
+    path = dump_case(case, out_file)
+
+    table = Table(title=f"Recorded: {task.task_id}")
+    table.add_column("field")
+    table.add_column("value", justify="right")
+    table.add_row("start_url", task.start_url)
+    table.add_row("actions", str(len(case.plan)))
+    table.add_row("output", str(path))
+    console.print(table)
+
+
+@app.command()
 def run(
     task: Annotated[Path, typer.Option("--task", help="A single task YAML/JSON file.")],
     agent: Annotated[

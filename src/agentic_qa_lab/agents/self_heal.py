@@ -27,13 +27,7 @@ _INTERACTIVE_TAGS = ("button", "input", "textarea", "select", "option", "a", "la
 
 def _same_shape(a: AgentAction, b: AgentAction) -> bool:
     """Return ``True`` when two actions are the same except for selector."""
-    return (
-        a.type is b.type
-        and a.text == b.text
-        and a.key == b.key
-        and a.x == b.x
-        and a.y == b.y
-    )
+    return a.type is b.type and a.text == b.text and a.key == b.key and a.x == b.x and a.y == b.y
 
 
 def _selector_terms(selector: str) -> list[str]:

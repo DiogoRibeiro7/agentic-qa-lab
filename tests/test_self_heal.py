@@ -88,7 +88,9 @@ def _failed_step(action: AgentAction) -> TraceStep:
 
 def test_heals_repeated_missing_selector_from_dom() -> None:
     original = AgentAction.click("#missing")
-    healed = SelfHealingAgent(StubAgent(original)).next_action(_task(), _obs(), [_failed_step(original)])
+    healed = SelfHealingAgent(StubAgent(original)).next_action(
+        _task(), _obs(), [_failed_step(original)]
+    )
 
     assert healed.type is ActionType.CLICK
     assert healed.selector == "#submit"

@@ -36,6 +36,17 @@ Example:
 agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --reflect
 ```
 
+## Record a task
+
+Capture a manual browser session into a reusable task file:
+
+```bash
+agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml
+```
+
+The recorder launches a browser, logs clicks, field edits, and supported key
+presses, then writes a `TaskSpec` plus baseline `plan` to YAML or JSON.
+
 ## API environment
 
 For non-UI flows, `APIEnvironment` lets the same runner/agent loop drive HTTP

@@ -114,8 +114,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Self-healing selectors.** `SelfHealingAgent` now proposes DOM-derived
   replacement selectors (id/name/text/role) after `element_not_found`
   failures, and the CLI exposes it as `agentic-qa run --self-heal`.
-- ⬜ **Record & replay.** Capture a manual session into a `TaskSpec` + plan to
-  seed the rule-based baseline.
+- ✅ **Record & replay.** Added `agentic-qa record`, which launches a browser,
+  captures manual clicks/edits/key presses, and writes a reusable task file
+  containing a `TaskSpec` plus baseline `plan`.
 - ⬜ **Secrets handling for tasks.** Reference credentials via env/secret refs in
   task files instead of inline plaintext (`SuperSecretPassword!`).
 - ⬜ **Report exporters.** JUnit/Allure output so benchmark results plug into

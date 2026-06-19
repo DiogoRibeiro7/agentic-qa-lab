@@ -82,3 +82,23 @@ def load_cases(patterns: list[str]) -> list[BenchmarkCase]:
     unique = sorted({p.resolve() for p in paths})
     cases = [load_case(p) for p in unique]
     return sorted(cases, key=lambda c: c.task.task_id)
+
+
+def dump_case(case: BenchmarkCase, path: str | Path) -> Path:
+    """Write one :class:`BenchmarkCase` to YAML or JSON and return the path."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    raw = case.task.model_dump(mode="json")
+    if case.plan:
+        raw["plan"] = [action.model_dump(mode="json", exclude_none=True) for action in case.plan]
+
+    if target.suffix.lower() in {".yaml", ".yml"}:
+        text = yaml.safe_dump(raw, sort_keys=False, allow_unicode=False)
+    elif target.suffix.lower() == ".json":
+        text = json.dumps(raw, indent=2) + "\n"
+    else:
+        raise ValueError(f"Unsupported task file extension: {target.suffix}")
+
+    target.write_text(text, encoding="utf-8")
+    return target

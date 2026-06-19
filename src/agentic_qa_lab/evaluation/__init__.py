@@ -10,7 +10,8 @@ from .benchmark import (
     summarize,
 )
 from .metrics import BenchmarkSummary, compute_summary
-from .tasks import BenchmarkCase, load_case, load_cases
+from .recording import build_recorded_plan, record_case
+from .tasks import BenchmarkCase, dump_case, load_case, load_cases
 
 __all__ = [
     "AgentFactory",
@@ -18,9 +19,12 @@ __all__ = [
     "BenchmarkRunner",
     "BenchmarkSummary",
     "EnvFactory",
+    "build_recorded_plan",
     "compute_summary",
+    "dump_case",
     "export_results",
     "load_case",
     "load_cases",
+    "record_case",
     "summarize",
 ]

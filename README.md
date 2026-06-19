@@ -187,7 +187,8 @@ agent = LLMPlannerAgent(OpenAICompatibleClient())
 - **Task files** (YAML or JSON) under `tasks/` describe a `TaskSpec` plus an
   optional `plan` — the action list the rule-based baseline replays. `load_cases`
   expands globs internally (so it works in PowerShell too), de-duplicates, and
-  sorts by `task_id`.
+  sorts by `task_id`. `dump_case` writes the same format back out, which the
+  manual recorder uses.
 - **`BenchmarkRunner`** runs every case with a fresh agent and environment
   (built by injected factories) and returns one `RunResult` per task.
 - **`compute_summary`** reports success rate, mean/median steps, total retries,
@@ -209,6 +210,9 @@ agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --ref
 # One task with selector self-healing enabled
 agentic-qa run --task tasks/example_login.yaml --self-heal
 
+# Record a manual browser session into a reusable task file
+agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml
+
 # Batch benchmark with summary CSV/JSON
 agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
 
@@ -221,6 +225,10 @@ and CI. `--agent` selects `rule` or `llm`; `--mode` sets the LLM grounding
 channel; `--reflect` wraps the agent in the repair loop (and lets failed actions
 stay in the trace for recovery); `--self-heal` retries repeated
 `element_not_found` actions with DOM-derived selector alternatives.
+
+`record` launches a browser for manual interaction, captures clicks, field
+edits, and key presses, then writes a standard task file containing the
+recorded `plan` plus a terminal `finish` action.
 
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)

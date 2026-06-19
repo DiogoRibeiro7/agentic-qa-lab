@@ -203,6 +203,51 @@ def test_run_help_lists_command() -> None:
     assert result.exit_code == 0
     assert "run" in result.output
     assert "benchmark" in result.output
+    assert "record" in result.output
+
+
+def test_record_command_writes_task_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    out_file = tmp_path / "recorded.yaml"
+
+    def fake_record_case(
+        task: TaskSpec,
+        *,
+        finish_reason: str,
+        headless: bool,
+        wait_for_finish: Any,
+    ) -> BenchmarkCase:
+        assert task.task_id == "rec-demo"
+        assert finish_reason == "captured"
+        assert headless is False
+        assert wait_for_finish is not None
+        return BenchmarkCase(
+            task=task,
+            plan=[AgentAction.click("#submit"), AgentAction.finish(finish_reason)],
+        )
+
+    monkeypatch.setattr("agentic_qa_lab.evaluation.record_case", fake_record_case)
+    result = runner.invoke(
+        app,
+        [
+            "record",
+            "--task-id",
+            "rec-demo",
+            "--goal",
+            "Submit the form",
+            "--start-url",
+            "https://e.com/",
+            "--out-file",
+            str(out_file),
+            "--finish-reason",
+            "captured",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert out_file.exists()
+    text = out_file.read_text(encoding="utf-8")
+    assert "task_id: rec-demo" in text
+    assert "selector: '#submit'" in text or 'selector: "#submit"' in text
 
 
 def test_cli_module_has_app() -> None:
