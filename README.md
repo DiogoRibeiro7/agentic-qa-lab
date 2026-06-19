@@ -197,7 +197,8 @@ agent = LLMPlannerAgent(OpenAICompatibleClient())
 - **`compute_summary`** reports success rate, mean/median steps, total retries,
   timeout rate, and a per-`FailureCategory` breakdown.
 - **`export_results`** writes `benchmark_summary.csv` (one row per run) and
-  `benchmark_summary.json` (summary + per-run detail).
+  `benchmark_summary.json` (summary + per-run detail), plus `junit.xml` and an
+  `allure-results/` directory for CI/test-report tooling.
 
 Run a **single task** end-to-end, or a whole **benchmark**, from the CLI:
 

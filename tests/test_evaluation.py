@@ -280,8 +280,12 @@ def test_export_results_writes_files(tmp_path: Path) -> None:
         _run(RunStatus.FAILURE, category=FailureCategory.TIMEOUT, steps=1, retries=1),
     ]
     csv_path, json_path = export_results(results, tmp_path)
+    junit_path = tmp_path / "junit.xml"
+    allure_dir = tmp_path / "allure-results"
 
     assert csv_path.exists() and json_path.exists()
+    assert junit_path.exists()
+    assert allure_dir.is_dir()
     csv_lines = csv_path.read_text(encoding="utf-8").strip().splitlines()
     assert csv_lines[0].startswith("task_id,status")
     assert len(csv_lines) == 3  # header + 2 rows
@@ -289,3 +293,6 @@ def test_export_results_writes_files(tmp_path: Path) -> None:
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["total"] == 2
     assert len(payload["runs"]) == 2
+    assert "testsuite" in junit_path.read_text(encoding="utf-8")
+    allure_files = sorted(allure_dir.glob("*-result.json"))
+    assert len(allure_files) == 2

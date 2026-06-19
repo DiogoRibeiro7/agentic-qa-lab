@@ -92,6 +92,8 @@ The benchmark command writes:
 
 - `benchmark_summary.csv` with one row per run.
 - `benchmark_summary.json` with aggregate summary plus per-run detail.
+- `junit.xml` for JUnit-compatible CI report ingestion.
+- `allure-results/` with one Allure result JSON file per run.
 
 ## API and dashboard
 
