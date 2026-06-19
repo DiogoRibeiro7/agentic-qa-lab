@@ -194,6 +194,29 @@ stay in the trace for recovery).
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)
 
+### Real-site tasks
+
+Beyond the illustrative `tasks/*` files, [`tasks/real/`](tasks/real/) holds
+benchmark tasks against a real, public automation-practice site
+([the-internet.herokuapp.com](https://the-internet.herokuapp.com)) with
+verified selectors and success markers:
+
+| Task | What it does |
+| ---- | ------------ |
+| `herokuapp-login` | Fills the login form and reaches the secure area |
+| `herokuapp-login-logout` | Logs in, then logs back out (multi-page workflow) |
+| `herokuapp-redirect` | Navigates from the index to the redirect page |
+
+```bash
+agentic-qa benchmark --tasks "tasks/real/*.yaml" --tasks "tasks/real/*.json"
+```
+
+These need network access and Chromium. Their shape is always validated in the
+test suite; the live runs are opt-in via
+[`tests/test_real_tasks.py`](tests/test_real_tasks.py) — set
+`AGENTIC_QA_RUN_NETWORK_TESTS=1` (with Chromium installed) to execute them,
+otherwise they skip so CI stays green.
+
 ## API and dashboard
 
 A small web tier makes runs inspectable. By design the API ingests *completed*

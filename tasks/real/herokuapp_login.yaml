@@ -1,0 +1,18 @@
+# Real-site task: form authentication on the-internet.herokuapp.com.
+# A stable, public automation-practice site. Requires network + a browser.
+task_id: herokuapp-login
+goal: Log into the secure area with the provided credentials.
+start_url: https://the-internet.herokuapp.com/login
+success_selector: Secure Area
+max_steps: 8
+max_retries: 2
+timeout_seconds: 45
+metadata:
+  site: the-internet.herokuapp.com
+  category: forms
+  difficulty: easy
+plan:
+  - {type: type_text, selector: "#username", text: tomsmith}
+  - {type: type_text, selector: "#password", text: "SuperSecretPassword!"}
+  - {type: click, selector: "button[type='submit']"}
+  - {type: finish, reason: Submitted valid credentials.}

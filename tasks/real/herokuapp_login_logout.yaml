@@ -1,0 +1,19 @@
+# Real-site task: a longer workflow — log in, then log back out.
+# Exercises multi-step navigation across pages on a real site.
+task_id: herokuapp-login-logout
+goal: Log into the secure area and then log out again.
+start_url: https://the-internet.herokuapp.com/login
+success_selector: logged out of the secure area
+max_steps: 10
+max_retries: 2
+timeout_seconds: 60
+metadata:
+  site: the-internet.herokuapp.com
+  category: forms
+  difficulty: medium
+plan:
+  - {type: type_text, selector: "#username", text: tomsmith}
+  - {type: type_text, selector: "#password", text: "SuperSecretPassword!"}
+  - {type: click, selector: "button[type='submit']"}
+  - {type: click, selector: "a[href='/logout']"}
+  - {type: finish, reason: Logged in and then out.}

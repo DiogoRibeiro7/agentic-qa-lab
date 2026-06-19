@@ -1,0 +1,17 @@
+{
+  "task_id": "herokuapp-redirect",
+  "goal": "From the index, open the Redirect Link page.",
+  "start_url": "https://the-internet.herokuapp.com/",
+  "success_selector": "Redirection",
+  "max_steps": 6,
+  "timeout_seconds": 45,
+  "metadata": {
+    "site": "the-internet.herokuapp.com",
+    "category": "navigation",
+    "difficulty": "easy"
+  },
+  "plan": [
+    { "type": "click", "selector": "a[href='/redirector']" },
+    { "type": "finish", "reason": "Navigated to the redirector page." }
+  ]
+}
