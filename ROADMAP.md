@@ -80,9 +80,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Reproducibility:** `poetry.lock` is committed, dev toolchain versions in
   `pyproject.toml` are exact, pre-commit hook revisions are pinned, and CI now
   installs a fixed Poetry version instead of floating to latest.
-- ⬜ **Parallel benchmarking:** run independent cases concurrently (process or
-  async pool) with a configurable worker count; today `BenchmarkRunner` is
-  sequential.
+- ✅ **Parallel benchmarking:** `BenchmarkRunner.run(..., workers=N)` now runs
+  independent cases concurrently with a configurable thread-pool worker count;
+  the CLI exposes it as `agentic-qa benchmark --workers N`.
 - ⬜ **Richer prompts:** trim/condense DOM more intelligently (accessibility
   tree instead of raw HTML), and cap memory/history by token budget.
 - ⬜ **Structured LLM output:** use tool/function-calling or JSON-schema mode

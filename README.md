@@ -184,6 +184,9 @@ agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --ref
 
 # Batch benchmark with summary CSV/JSON
 agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
+
+# Run two benchmark cases at a time
+agentic-qa benchmark --tasks "tasks/real/*.yaml" --workers 2
 ```
 
 `run` exits non-zero when the task does not succeed, so it composes in scripts

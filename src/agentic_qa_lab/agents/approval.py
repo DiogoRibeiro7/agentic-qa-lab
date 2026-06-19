@@ -44,6 +44,7 @@ DEFAULT_RISKY_KEYWORDS: frozenset[str] = frozenset(
     }
 )
 
+
 class ApprovalDecision(StrEnum):
     """Decision returned by an approver for a risky action."""
 

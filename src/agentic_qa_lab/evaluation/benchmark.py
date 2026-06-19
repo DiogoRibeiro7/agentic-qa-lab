@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -39,22 +40,38 @@ class BenchmarkRunner:
         cases: list[BenchmarkCase],
         agent_factory: AgentFactory,
         env_factory: EnvFactory,
+        *,
+        workers: int = 1,
     ) -> list[RunResult]:
         """Run every case and return the per-case :class:`RunResult` list.
 
         Each case gets a fresh agent and environment from the factories. If the
-        environment is a context manager it is closed after the run.
+        environment is a context manager it is closed after the run. ``workers``
+        controls how many cases may execute concurrently.
         """
-        results: list[RunResult] = []
-        for case in cases:
-            agent = agent_factory(case)
-            env = env_factory(case)
-            # Some environments are themselves context managers. Use a no-op
-            # context manager otherwise so the runner code can stay uniform.
-            manager = env if isinstance(env, BrowserEnvironment) else nullcontext(env)
-            with manager:
-                results.append(self._runner.run(case.task, agent, env))
-        return results
+        if workers <= 0:
+            raise ValueError("workers must be >= 1.")
+        if workers == 1 or len(cases) <= 1:
+            return [self._run_case(case, agent_factory, env_factory) for case in cases]
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            return list(
+                executor.map(lambda case: self._run_case(case, agent_factory, env_factory), cases)
+            )
+
+    def _run_case(
+        self,
+        case: BenchmarkCase,
+        agent_factory: AgentFactory,
+        env_factory: EnvFactory,
+    ) -> RunResult:
+        """Run one case with a fresh agent and environment."""
+        agent = agent_factory(case)
+        env = env_factory(case)
+        # Some environments are themselves context managers. Use a no-op
+        # context manager otherwise so the runner code can stay uniform.
+        manager = env if isinstance(env, BrowserEnvironment) else nullcontext(env)
+        with manager:
+            return self._runner.run(case.task, agent, env)
 
 
 def export_results(

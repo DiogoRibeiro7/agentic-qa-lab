@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 from agentic_qa_lab.agents import RuleBasedAgent
@@ -174,6 +176,63 @@ def test_benchmark_runner_runs_cases_and_closes_env() -> None:
     assert len(results) == 1
     assert results[0].status is RunStatus.SUCCESS
     assert envs[0].closed is True  # env context-managed/closed
+
+
+def test_benchmark_runner_rejects_non_positive_workers() -> None:
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="t", goal="g", start_url="https://e.com/"),
+        plan=[AgentAction.finish("done")],
+    )
+
+    def make_agent(c: BenchmarkCase) -> RuleBasedAgent:
+        return RuleBasedAgent(c.plan)
+
+    def make_env(c: BenchmarkCase) -> FakeEnv:
+        return FakeEnv()
+
+    try:
+        BenchmarkRunner().run([case], make_agent, make_env, workers=0)
+    except ValueError as exc:
+        assert "workers" in str(exc)
+    else:
+        raise AssertionError("Expected workers=0 to raise ValueError")
+
+
+def test_benchmark_runner_can_run_cases_in_parallel() -> None:
+    cases = [
+        BenchmarkCase(
+            task=TaskSpec(task_id=f"t{i}", goal="g", start_url="https://e.com/"),
+            plan=[AgentAction.finish("done")],
+        )
+        for i in range(2)
+    ]
+    started: list[str] = []
+    started_lock = threading.Lock()
+    release = threading.Event()
+
+    class BlockingEnv(FakeEnv):
+        def open(self, url: str) -> Observation:
+            with started_lock:
+                started.append(url)
+                if len(started) == 2:
+                    release.set()
+            release.wait(timeout=1.0)
+            return super().open(url)
+
+    def make_agent(c: BenchmarkCase) -> RuleBasedAgent:
+        return RuleBasedAgent(c.plan)
+
+    def make_env(c: BenchmarkCase) -> BlockingEnv:
+        return BlockingEnv()
+
+    started_at = time.perf_counter()
+    results = BenchmarkRunner().run(cases, make_agent, make_env, workers=2)
+    elapsed = time.perf_counter() - started_at
+
+    assert [result.task_id for result in results] == ["t0", "t1"]
+    assert all(result.status is RunStatus.SUCCESS for result in results)
+    assert len(started) == 2
+    assert elapsed < 1.0
 
 
 def test_export_results_writes_files(tmp_path: Path) -> None:

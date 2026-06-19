@@ -60,10 +60,7 @@ def build_agent(
 def _console_approver(action: AgentAction) -> ApprovalDecision:
     """Approver that asks the operator to confirm a risky action on the console."""
     target = action.selector or (action.x, action.y)
-    prompt = (
-        f"Approve risky action '{action.type.value}' on {target}? "
-        "[y]es/[a]ll/[n]o"
-    )
+    prompt = f"Approve risky action '{action.type.value}' on {target}? " "[y]es/[a]ll/[n]o"
     while True:
         choice = typer.prompt(prompt, default="n").strip().lower()
         if choice in {"y", "yes"}:
@@ -92,6 +89,10 @@ def benchmark(
         Path,
         typer.Option("--out-dir", help="Directory for the summary CSV/JSON."),
     ] = Path("artifacts/benchmark"),
+    workers: Annotated[
+        int,
+        typer.Option("--workers", min=1, help="Number of benchmark cases to run concurrently."),
+    ] = 1,
     headless: Annotated[bool, typer.Option(help="Run the browser headless.")] = True,
 ) -> None:
     """Run the rule-based baseline over tasks and export summary metrics.
@@ -124,7 +125,7 @@ def benchmark(
         """Launch a fresh Playwright environment for a benchmark case."""
         return PlaywrightEnvironment.launch(headless=headless)
 
-    results = BenchmarkRunner().run(cases, make_agent, make_env)
+    results = BenchmarkRunner().run(cases, make_agent, make_env, workers=workers)
     csv_path, json_path = export_results(results, out_dir)
     summary = compute_summary(results)
 
