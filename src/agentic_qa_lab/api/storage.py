@@ -63,6 +63,7 @@ class RunStore:
         self._id_factory = id_factory
 
     def _path(self, run_id: str) -> Path:
+        """Return the filesystem path for a stored run id."""
         return self._root / f"{run_id}.json"
 
     def create(self, run: RunResult) -> RunRecord:

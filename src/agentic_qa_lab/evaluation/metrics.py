@@ -93,7 +93,12 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
 
 
 def _percentile(values: list[float], pct: float) -> float:
-    """Return the ``pct`` percentile of ``values`` (nearest-rank), or 0 if empty."""
+    """Return the ``pct`` percentile of ``values`` using nearest-rank.
+
+    For example, the 95th percentile of a list is the element at rank
+    ``round(0.95 * n)`` when the values are sorted. Returns 0.0 for empty
+    inputs to keep summary computation safe.
+    """
     if not values:
         return 0.0
     ordered = sorted(values)

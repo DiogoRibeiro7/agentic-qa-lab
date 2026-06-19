@@ -26,7 +26,12 @@ DEFAULT_SETTLE_MS = 500
 
 
 def _same_target(a: AgentAction, b: AgentAction) -> bool:
-    """Return ``True`` when two actions address the same interaction target."""
+    """Return ``True`` when two actions target the same UI interaction.
+
+    The comparison considers action type, selector, coordinates, text payload,
+    and key so that retry logic only treats truly repeated interactions as the
+    same target.
+    """
     return (
         a.type is b.type
         and a.selector == b.selector

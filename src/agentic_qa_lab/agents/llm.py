@@ -21,7 +21,11 @@ Role = Literal["system", "user", "assistant"]
 
 
 def _image_data_uri(path: str | Path) -> str:
-    """Read an image file and return a base64 ``data:`` URI."""
+    """Read a local image file and return a base64-encoded data URI.
+
+    This is used for OpenAI multimodal ``image_url`` content parts, so the
+    image can be attached to a chat message without a separate hosting step.
+    """
     raw = Path(path).read_bytes()
     suffix = Path(path).suffix.lower().lstrip(".") or "png"
     encoded = base64.b64encode(raw).decode("ascii")

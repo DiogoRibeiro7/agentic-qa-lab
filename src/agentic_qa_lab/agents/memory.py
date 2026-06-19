@@ -23,7 +23,11 @@ REPEAT_FAILURE_THRESHOLD = 2
 
 
 def _target(step: TraceStep) -> str:
-    """Return a stable label for the UI target an action addressed."""
+    """Build a stable string key for the action's UI target.
+
+    The target is either the selector or the explicit click coordinates. This
+    string is used for counting repeated failures against the same UI target.
+    """
     action = step.action
     where = action.selector if action.selector is not None else f"({action.x}, {action.y})"
     return f"{action.type.value}:{where}"
