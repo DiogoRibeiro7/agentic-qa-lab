@@ -58,9 +58,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Python version mismatch.** Widened to `>=3.11,<3.14`, dropped the unused
   numpy dependency, bumped pandas to a 3.13-compatible release, and added a CI
   matrix (3.11 / 3.12 / 3.13).
-- ⬜ **No committed `poetry.lock`.** CI re-resolves dependencies on every run,
-  so a transitive release can break the build (as happened with click 8.2).
-  Commit a lock file and update it deliberately.
+- ✅ **No committed `poetry.lock`.** A lock file now pins the full dependency
+  graph so CI installs are deterministic and a transitive release cannot
+  silently break the build.
 - ✅ **Token counts are estimated, not measured.** `OpenAICompatibleClient` now
   records the provider's `usage` block, and `MeteredClient` records those real
   token counts when present, falling back to the length-based estimate only
