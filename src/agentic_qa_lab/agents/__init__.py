@@ -6,6 +6,13 @@ owns the loop, safeguards, and trace aggregation.
 
 from __future__ import annotations
 
+from .approval import (
+    ApprovalAgent,
+    Approver,
+    RiskPolicy,
+    allow_all,
+    deny_all,
+)
 from .base import Agent
 from .llm import (
     LLMClient,
@@ -20,6 +27,8 @@ from .runner import Runner, write_trace_jsonl
 
 __all__ = [
     "Agent",
+    "ApprovalAgent",
+    "Approver",
     "LLMClient",
     "LLMConfigError",
     "LLMMessage",
@@ -27,7 +36,10 @@ __all__ = [
     "ObservationMode",
     "OpenAICompatibleClient",
     "ReflectiveAgent",
+    "RiskPolicy",
     "RuleBasedAgent",
     "Runner",
+    "allow_all",
+    "deny_all",
     "write_trace_jsonl",
 ]

@@ -276,6 +276,34 @@ agent = ReflectiveAgent(inner_agent, max_attempts=3, settle_ms=500)
 run = Runner(stop_on_action_failure=False).run(task, agent, env)
 ```
 
+## Human approval for risky actions
+
+`ApprovalAgent` wraps any agent and gates **risky** actions through an approver
+callback before they reach the browser. A denied action becomes a terminal
+`fail`, so the run stops safely instead of, say, deleting a record or submitting
+a payment. Risk is decided by `RiskPolicy` — by default it flags
+`click`/`press_key` actions whose selector, text, key, or reason contains a
+risky keyword (`delete`, `submit`, `pay`, `confirm`, `logout`, ...); both the
+keywords and the eligible action types are overridable.
+
+Approvers are plain `Callable[[AgentAction], bool]`. The library ships
+`deny_all` (the safe default) and `allow_all`; wire your own to a console prompt
+or an allow-list. It composes outermost over `ReflectiveAgent` so it gates what
+would actually execute.
+
+```python
+from agentic_qa_lab.agents import ApprovalAgent, RiskPolicy, allow_all
+
+agent = ApprovalAgent(inner_agent, approver=my_approver, policy=RiskPolicy())
+```
+
+From the CLI, `--require-approval` prompts for confirmation before each risky
+action:
+
+```bash
+agentic-qa run --task tasks/delete_account.yaml --require-approval
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

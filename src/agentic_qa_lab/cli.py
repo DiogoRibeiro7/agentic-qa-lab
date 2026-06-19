@@ -15,6 +15,7 @@ from .config import RuntimeSettings
 
 if TYPE_CHECKING:
     from .agents import Agent
+    from .domain import AgentAction
     from .evaluation import BenchmarkCase
 
 app = typer.Typer(help="Portfolio project command line interface.")
@@ -39,6 +40,12 @@ def build_agent(case: BenchmarkCase, kind: AgentKind, mode: ObservationMode) -> 
     if kind is AgentKind.RULE:
         return RuleBasedAgent(case.plan)
     return LLMPlannerAgent(OpenAICompatibleClient(), observation_mode=mode)
+
+
+def _console_approver(action: AgentAction) -> bool:
+    """Approver that asks the operator to confirm a risky action on the console."""
+    target = action.selector or (action.x, action.y)
+    return typer.confirm(f"Approve risky action '{action.type.value}' on {target}?")
 
 
 @app.command()
@@ -117,6 +124,9 @@ def run(
     reflect: Annotated[
         bool, typer.Option(help="Wrap the agent in a settle-and-retry repair loop.")
     ] = False,
+    require_approval: Annotated[
+        bool, typer.Option(help="Prompt for confirmation before risky actions.")
+    ] = False,
     out_dir: Annotated[
         Path, typer.Option("--out-dir", help="Directory for the trace JSONL + screenshots.")
     ] = Path("artifacts/runs"),
@@ -128,7 +138,7 @@ def run(
     chromium``), executes the task, prints the outcome, and stores the trace as
     ``<out_dir>/<task_id>.jsonl``.
     """
-    from .agents import ReflectiveAgent, Runner, write_trace_jsonl
+    from .agents import ApprovalAgent, ReflectiveAgent, Runner, write_trace_jsonl
     from .environments import PlaywrightEnvironment
     from .evaluation import load_case
 
@@ -136,6 +146,9 @@ def run(
     chosen = build_agent(case, agent, mode)
     if reflect:
         chosen = ReflectiveAgent(chosen)
+    if require_approval:
+        # Gate risky actions outermost, so it sees what would actually execute.
+        chosen = ApprovalAgent(chosen, approver=_console_approver)
     runner = Runner(stop_on_action_failure=not reflect)
 
     screenshots = out_dir / case.task.task_id / "screenshots"
