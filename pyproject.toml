@@ -6,6 +6,9 @@
     readme = "README.md"
     packages = [{ include = "agentic_qa_lab", from = "src" }]
 
+    [tool.poetry.scripts]
+    agentic-qa = "agentic_qa_lab.cli:app"
+
     [tool.poetry.dependencies]
     python = ">=3.11,<3.13"
 pydantic = "^2.8.0"

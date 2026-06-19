@@ -1,0 +1,13 @@
+{
+  "task_id": "example-search",
+  "goal": "Search for a term and open the first result.",
+  "start_url": "https://example.com/",
+  "success_selector": "Results",
+  "max_steps": 8,
+  "metadata": { "category": "navigation", "difficulty": "easy" },
+  "plan": [
+    { "type": "type_text", "selector": "#q", "text": "agentic qa" },
+    { "type": "press_key", "selector": "#q", "key": "Enter" },
+    { "type": "finish", "reason": "Submitted the search." }
+  ]
+}

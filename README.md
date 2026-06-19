@@ -156,6 +156,31 @@ agent = LLMPlannerAgent(OpenAICompatibleClient())
 # run = Runner().run(task, agent, env)
 ```
 
+## Evaluation benchmark
+
+`agentic_qa_lab.evaluation` turns runs into comparable numbers.
+
+- **Task files** (YAML or JSON) under `tasks/` describe a `TaskSpec` plus an
+  optional `plan` — the action list the rule-based baseline replays. `load_cases`
+  expands globs internally (so it works in PowerShell too), de-duplicates, and
+  sorts by `task_id`.
+- **`BenchmarkRunner`** runs every case with a fresh agent and environment
+  (built by injected factories) and returns one `RunResult` per task.
+- **`compute_summary`** reports success rate, mean/median steps, total retries,
+  timeout rate, and a per-`FailureCategory` breakdown.
+- **`export_results`** writes `benchmark_summary.csv` (one row per run) and
+  `benchmark_summary.json` (summary + per-run detail).
+
+Run the baseline from the CLI:
+
+```bash
+playwright install chromium
+agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
+```
+
+(The console-script `agentic-qa` is registered via `pyproject.toml`; without an
+install, use `python -m agentic_qa_lab.cli benchmark ...`.)
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

@@ -1,0 +1,193 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from agentic_qa_lab.agents import RuleBasedAgent
+from agentic_qa_lab.domain import (
+    ActionResult,
+    AgentAction,
+    FailureCategory,
+    Observation,
+    RunResult,
+    RunStatus,
+    TaskSpec,
+)
+from agentic_qa_lab.environments import BrowserEnvironment
+from agentic_qa_lab.evaluation import (
+    BenchmarkCase,
+    BenchmarkRunner,
+    compute_summary,
+    export_results,
+    load_case,
+    load_cases,
+)
+
+
+# --------------------------------------------------------------------------- #
+# Fakes
+# --------------------------------------------------------------------------- #
+class FakeEnv(BrowserEnvironment):
+    def __init__(self, *, dom: str = "<html>Welcome</html>") -> None:
+        self._dom = dom
+        self._step = 0
+        self.closed = False
+
+    def _obs(self) -> Observation:
+        return Observation(
+            step=self._step,
+            url="https://e.com/",
+            dom_snapshot=self._dom,
+            timestamp=1.0 + self._step,
+        )
+
+    def open(self, url: str) -> Observation:
+        return self._obs()
+
+    def observe(self) -> Observation:
+        self._step += 1
+        return self._obs()
+
+    def execute(self, action: AgentAction) -> ActionResult:
+        return ActionResult.ok()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _run(
+    status: RunStatus, *, category: FailureCategory, steps: int, retries: int = 0
+) -> RunResult:
+    return RunResult(
+        task_id="t",
+        status=status,
+        failure_category=category,
+        steps=[],
+        total_retries=retries,
+        duration_seconds=float(steps),
+        started_at=1.0,
+        ended_at=1.0 + steps,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# metrics
+# --------------------------------------------------------------------------- #
+def test_compute_summary_empty() -> None:
+    summary = compute_summary([])
+    assert summary.total == 0
+    assert summary.success_rate == 0.0
+
+
+def test_compute_summary_mixed() -> None:
+    results = [
+        _run(RunStatus.SUCCESS, category=FailureCategory.NONE, steps=2),
+        _run(RunStatus.SUCCESS, category=FailureCategory.NONE, steps=4),
+        _run(RunStatus.TIMEOUT, category=FailureCategory.TIMEOUT, steps=6, retries=3),
+        _run(RunStatus.FAILURE, category=FailureCategory.ELEMENT_NOT_FOUND, steps=0),
+    ]
+    summary = compute_summary(results)
+
+    assert summary.total == 4
+    assert summary.successes == 2
+    assert summary.success_rate == 0.5
+    assert summary.timeout_rate == 0.25
+    assert summary.total_retries == 3
+    assert summary.failure_categories["timeout"] == 1
+    assert summary.failure_categories["none"] == 2
+
+
+# --------------------------------------------------------------------------- #
+# task loading
+# --------------------------------------------------------------------------- #
+def test_load_yaml_case(tmp_path: Path) -> None:
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        "task_id: a\n"
+        "goal: do\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: click, selector: '#go'}\n"
+        "  - {type: finish}\n",
+        encoding="utf-8",
+    )
+    case = load_case(path)
+    assert case.task.task_id == "a"
+    assert len(case.plan) == 2
+    assert case.plan[0].selector == "#go"
+
+
+def test_load_json_case(tmp_path: Path) -> None:
+    path = tmp_path / "t.json"
+    path.write_text(
+        json.dumps(
+            {
+                "task_id": "b",
+                "goal": "do",
+                "start_url": "https://e.com/",
+                "plan": [{"type": "finish"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    case = load_case(path)
+    assert case.task.task_id == "b"
+    assert case.plan[0].type.value == "finish"
+
+
+def test_load_cases_sorted_and_deduped(tmp_path: Path) -> None:
+    (tmp_path / "z.yaml").write_text(
+        "task_id: z\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8"
+    )
+    (tmp_path / "a.yaml").write_text(
+        "task_id: a\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8"
+    )
+    cases = load_cases([str(tmp_path / "*.yaml")])
+    assert [c.task.task_id for c in cases] == ["a", "z"]
+
+
+def test_bundled_example_tasks_load() -> None:
+    cases = load_cases(["tasks/*.yaml", "tasks/*.json"])
+    ids = {c.task.task_id for c in cases}
+    assert {"example-login", "example-search"} <= ids
+
+
+# --------------------------------------------------------------------------- #
+# benchmark runner + export
+# --------------------------------------------------------------------------- #
+def test_benchmark_runner_runs_cases_and_closes_env() -> None:
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="t", goal="g", start_url="https://e.com/"),
+        plan=[AgentAction.finish("done")],
+    )
+    envs: list[FakeEnv] = []
+
+    def make_agent(c: BenchmarkCase) -> RuleBasedAgent:
+        return RuleBasedAgent(c.plan)
+
+    def make_env(c: BenchmarkCase) -> FakeEnv:
+        env = FakeEnv()
+        envs.append(env)
+        return env
+
+    results = BenchmarkRunner().run([case], make_agent, make_env)
+    assert len(results) == 1
+    assert results[0].status is RunStatus.SUCCESS
+    assert envs[0].closed is True  # env context-managed/closed
+
+
+def test_export_results_writes_files(tmp_path: Path) -> None:
+    results = [
+        _run(RunStatus.SUCCESS, category=FailureCategory.NONE, steps=2),
+        _run(RunStatus.FAILURE, category=FailureCategory.TIMEOUT, steps=1, retries=1),
+    ]
+    csv_path, json_path = export_results(results, tmp_path)
+
+    assert csv_path.exists() and json_path.exists()
+    csv_lines = csv_path.read_text(encoding="utf-8").strip().splitlines()
+    assert csv_lines[0].startswith("task_id,status")
+    assert len(csv_lines) == 3  # header + 2 rows
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["summary"]["total"] == 2
+    assert len(payload["runs"]) == 2

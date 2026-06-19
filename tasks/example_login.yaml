@@ -1,0 +1,15 @@
+task_id: example-login
+goal: Fill the demo login form and submit it.
+start_url: https://example.com/login
+success_selector: Welcome
+max_steps: 10
+max_retries: 2
+timeout_seconds: 60
+metadata:
+  category: forms
+  difficulty: easy
+plan:
+  - {type: type_text, selector: "#username", text: alice}
+  - {type: type_text, selector: "#password", text: s3cret}
+  - {type: click, selector: "#submit"}
+  - {type: finish, reason: Submitted the login form.}
