@@ -77,8 +77,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Improvements ⬜
 
-- ⬜ **Reproducibility:** commit `poetry.lock`; pin pre-commit and CI tool
-  versions to the dev dependencies so local and CI agree exactly.
+- ✅ **Reproducibility:** `poetry.lock` is committed, dev toolchain versions in
+  `pyproject.toml` are exact, pre-commit hook revisions are pinned, and CI now
+  installs a fixed Poetry version instead of floating to latest.
 - ⬜ **Parallel benchmarking:** run independent cases concurrently (process or
   async pool) with a configurable worker count; today `BenchmarkRunner` is
   sequential.

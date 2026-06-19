@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from agentic_qa_lab.agents import (
-    ApprovalDecision,
     ApprovalAgent,
+    ApprovalDecision,
     ReflectiveAgent,
     RiskPolicy,
     Runner,

@@ -7,8 +7,8 @@ owns the loop, safeguards, and trace aggregation.
 from __future__ import annotations
 
 from .approval import (
-    ApprovalDecision,
     ApprovalAgent,
+    ApprovalDecision,
     Approver,
     RiskPolicy,
     allow_all,

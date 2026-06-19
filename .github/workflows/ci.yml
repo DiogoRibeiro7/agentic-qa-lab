@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  POETRY_VERSION: "2.2.1"
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -31,7 +34,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true

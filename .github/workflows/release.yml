@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  POETRY_VERSION: "2.2.1"
+
 jobs:
   build-and-release:
     name: Build and Publish GitHub Release
@@ -25,7 +28,7 @@ jobs:
           cache: "pip"
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Install dependencies
         run: poetry install --with dev
