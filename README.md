@@ -125,6 +125,37 @@ agent = RuleBasedAgent([AgentAction.click("#submit"), AgentAction.finish()])
 - Exceeding `timeout_seconds` ends the run as `timeout`.
 - A `finish` action with an unmet `success_selector` is treated as `failure`.
 
+## LLM planner
+
+The planning layer is provider-agnostic. The core depends only on the
+`LLMClient` protocol — a single `complete(messages) -> str` call — so any
+backend can be plugged in without touching the agent logic.
+
+- **`OpenAICompatibleClient`** — talks to any OpenAI-style
+  `/chat/completions` endpoint using only the standard library. It is
+  configured entirely through environment variables: `LLM_API_KEY` (required),
+  `LLM_BASE_URL` (default `https://api.openai.com/v1`), and `LLM_MODEL`
+  (default `gpt-4o-mini`).
+- **`LLMPlannerAgent`** — renders the goal, the current observation (URL,
+  title, truncated DOM), and a short action history into a chat prompt, then
+  parses the reply into a strictly-validated `AgentAction`. JSON inside a
+  ```` ```json ```` fence is supported. Invalid replies trigger a correction
+  re-prompt up to `max_parse_retries`; if the model still fails, the agent
+  emits a terminal `fail` so the run ends cleanly.
+
+```bash
+export LLM_API_KEY=sk-...           # any OpenAI-compatible provider
+export LLM_BASE_URL=https://api.openai.com/v1
+export LLM_MODEL=gpt-4o-mini
+```
+
+```python
+from agentic_qa_lab.agents import LLMPlannerAgent, OpenAICompatibleClient
+
+agent = LLMPlannerAgent(OpenAICompatibleClient())
+# run = Runner().run(task, agent, env)
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.
