@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from ..domain import AgentAction, Observation, TaskSpec, TraceStep
 from .llm import LLMClient, LLMMessage
+from .memory import summarize_trace
 
 #: Hard cap on how much DOM text is sent to the model per step.
 DEFAULT_DOM_CHAR_LIMIT = 4000
@@ -111,6 +112,10 @@ class LLMPlannerAgent:
     observation_mode:
         Which observation channels to ground on — DOM text, the screenshot, or
         both. Defaults to ``DOM_ONLY``.
+    include_memory:
+        When ``True`` (default) a distilled :class:`MemorySummary` of the trace
+        (repeatedly-failing targets, successes, last error) is added to the
+        prompt so the planner avoids repeating failed actions.
     """
 
     def __init__(
@@ -120,11 +125,13 @@ class LLMPlannerAgent:
         max_parse_retries: int = 2,
         dom_char_limit: int = DEFAULT_DOM_CHAR_LIMIT,
         observation_mode: ObservationMode = ObservationMode.DOM_ONLY,
+        include_memory: bool = True,
     ) -> None:
         self._client = client
         self._max_parse_retries = max_parse_retries
         self._dom_char_limit = dom_char_limit
         self._mode = observation_mode
+        self._include_memory = include_memory
 
     def next_action(
         self,
@@ -205,6 +212,10 @@ class LLMPlannerAgent:
             f"TITLE: {observation.title or '(unknown)'}",
             f"RECENT_ACTIONS:\n{history}",
         ]
+        if self._include_memory:
+            memory = summarize_trace(trace).render()
+            if memory:
+                lines.append(memory)
         if self._mode.uses_dom:
             dom = (observation.dom_snapshot or "")[: self._dom_char_limit]
             lines.append(f"DOM (truncated to {self._dom_char_limit} chars):\n{dom}")

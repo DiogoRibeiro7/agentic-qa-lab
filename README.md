@@ -304,6 +304,37 @@ action:
 agentic-qa run --task tasks/delete_account.yaml --require-approval
 ```
 
+## Run memory
+
+The raw trace grows every step, and a planner that re-reads all of it tends to
+repeat actions that already failed. `summarize_trace` distils the trace into a
+compact `MemorySummary` — which targets keep failing (with counts and the last
+failure category), which already succeeded, the URLs visited, and the last
+error. It is derived from the trace on demand, so it holds no mutable state and
+is fully deterministic.
+
+`LLMPlannerAgent` injects this summary into its prompt by default
+(`include_memory=True`), adding a short `MEMORY (learned this run)` block that
+tells the model what to avoid:
+
+```text
+MEMORY (learned this run):
+  avoid (kept failing): click:#go x3 [element_not_found]
+  already succeeded: type_text:#user
+  last error: no node found for selector #go
+```
+
+Set `include_memory=False` to fall back to raw-history-only prompting. The
+summary is also usable on its own:
+
+```python
+from agentic_qa_lab.agents import summarize_trace
+
+memory = summarize_trace(run.steps)
+for target in memory.problem_targets:
+    print(target.target, target.count, target.last_category)
+```
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.

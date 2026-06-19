@@ -20,6 +20,7 @@ from .llm import (
     LLMMessage,
     OpenAICompatibleClient,
 )
+from .memory import FailedTarget, MemorySummary, summarize_trace
 from .planner import LLMPlannerAgent, ObservationMode
 from .reflective import ReflectiveAgent
 from .rule_based import RuleBasedAgent
@@ -29,10 +30,12 @@ __all__ = [
     "Agent",
     "ApprovalAgent",
     "Approver",
+    "FailedTarget",
     "LLMClient",
     "LLMConfigError",
     "LLMMessage",
     "LLMPlannerAgent",
+    "MemorySummary",
     "ObservationMode",
     "OpenAICompatibleClient",
     "ReflectiveAgent",
@@ -41,5 +44,6 @@ __all__ = [
     "Runner",
     "allow_all",
     "deny_all",
+    "summarize_trace",
     "write_trace_jsonl",
 ]
