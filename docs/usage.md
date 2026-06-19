@@ -67,6 +67,13 @@ Or bring up both via Docker Compose:
 docker compose up --build
 ```
 
+The dashboard supports:
+
+- queuing runs through the API
+- viewing the execution queue
+- comparing two runs side by side
+- stepping through a trace timeline with inline screenshots
+
 ## Local docs
 
 Build the docs site:

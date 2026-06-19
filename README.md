@@ -254,7 +254,9 @@ Runs are persisted as one JSON file per run under `AGENTIC_QA_STORE_DIR`
 
 **Streamlit dashboard** (`apps/dashboard/app.py`) reads the API
 (`AGENTIC_QA_API_URL`) and offers a launch form, an execution-queue view, a
-run-comparison table with a success-rate metric, and a per-step trace viewer.
+run-comparison table with a success-rate metric, side-by-side run diffing, and
+a per-step trace timeline with inline screenshots when the files are available
+locally.
 
 ```bash
 uvicorn agentic_qa_lab.api.app:app --reload          # API on :8000

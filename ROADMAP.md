@@ -105,8 +105,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Run execution API.** The API now exposes `POST /runs/execute` plus
   execution-status endpoints backed by a lightweight worker thread, and the
   dashboard can launch runs instead of only viewing stored ones.
-- ⬜ **Dashboard upgrades.** Show step screenshots inline, a trace timeline, and
-  side-by-side diffing of two runs (DOM-only vs combined, etc.).
+- ✅ **Dashboard upgrades.** The Streamlit dashboard now shows an execution
+  queue, side-by-side run diffing, and a trace timeline with inline
+  screenshots when files are available locally.
 - ⬜ **More environments.** Selenium and Appium/mobile adapters behind the same
   `BrowserEnvironment` interface; an API-testing environment for non-UI flows.
 - ⬜ **Self-healing selectors.** On `element_not_found`, propose alternative
