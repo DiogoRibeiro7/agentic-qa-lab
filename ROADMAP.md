@@ -90,8 +90,8 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   `StructuredLLMClient.complete_json(...)`; `OpenAICompatibleClient` uses
   OpenAI `response_format=json_schema`, and `LLMPlannerAgent` prefers that path
   before falling back to free-text JSON parsing.
-- ⬜ **Coverage gate:** add a `--cov-fail-under` threshold in CI now that
-  coverage sits around 90%.
+- ✅ **Coverage gate:** pytest now enforces `--cov-fail-under=90`, so CI fails
+  when total coverage regresses below the agreed floor.
 - ⬜ **Typed config via env:** load `RuntimeSettings`/LLM config from `.env`
   with `pydantic-settings` rather than ad-hoc `os.environ` reads.
 - ⬜ **Docs:** publish API/usage docs (mkdocs) and add a README CI badge.

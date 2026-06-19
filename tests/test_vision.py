@@ -80,7 +80,7 @@ def test_dom_only_omits_screenshot(tmp_path: Path) -> None:
     )
 
     system, user = llm.last
-    assert "id='go'" in user.content  # DOM present
+    assert "button id=go" in user.content  # DOM summary present
     assert user.images == ()  # no screenshot attached
     assert "SCREENSHOT" not in system.content
 
@@ -108,7 +108,7 @@ def test_combined_includes_both(tmp_path: Path) -> None:
     )
 
     _system, user = llm.last
-    assert "id='go'" in user.content
+    assert "button id=go" in user.content
     assert user.images == (str(png),)
 
 
