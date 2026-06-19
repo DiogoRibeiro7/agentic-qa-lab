@@ -10,7 +10,7 @@
     agentic-qa = "agentic_qa_lab.cli:app"
 
     [tool.poetry.dependencies]
-    python = ">=3.11,<3.13"
+    python = ">=3.11,<3.14"
 pydantic = "^2.8.0"
 typer = "^0.13.1"
 # Click 8.2 changed flag handling in a way that breaks Typer's secondary
@@ -18,8 +18,8 @@ typer = "^0.13.1"
 # below it to match the supported Typer line.
 click = ">=8.1.7,<8.2"
 rich = "^13.7.1"
-numpy = "^1.26.4"
-pandas = "^2.2.2"
+# pandas 2.2.3 is the first release with CPython 3.13 wheels.
+pandas = "^2.2.3"
 fastapi = "^0.111.0"
 uvicorn = "^0.30.1"
 playwright = "^1.44.0"

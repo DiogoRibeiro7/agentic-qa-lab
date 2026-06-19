@@ -55,9 +55,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   `Observation.visible_text` channel (`body.inner_text()`) that excludes
   `<script>` source, comments, and hidden nodes, falling back to `dom_snapshot`
   only when visible text is unavailable.
-- ⬜ **Python version mismatch.** `pyproject.toml` pins `>=3.11,<3.13` while the
-  project is developed/tested on 3.13. Widen the bound and add a CI matrix
-  (3.11–3.13) to test what we actually support.
+- ✅ **Python version mismatch.** Widened to `>=3.11,<3.14`, dropped the unused
+  numpy dependency, bumped pandas to a 3.13-compatible release, and added a CI
+  matrix (3.11 / 3.12 / 3.13).
 - ⬜ **No committed `poetry.lock`.** CI re-resolves dependencies on every run,
   so a transitive release can break the build (as happened with click 8.2).
   Commit a lock file and update it deliberately.
@@ -69,8 +69,8 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   observation-latency field.
 - ⬜ **Approval gate is per-step, not per-session.** `ApprovalAgent` re-prompts
   for each risky action with no "approve all / remember" option.
-- ⬜ **CRLF noise on Windows.** Add a `.gitattributes` enforcing LF to silence
-  the line-ending warnings on commit.
+- ✅ **CRLF noise on Windows.** Added a `.gitattributes` enforcing LF so commits
+  no longer warn about line-ending conversion.
 
 ## Improvements ⬜
 
