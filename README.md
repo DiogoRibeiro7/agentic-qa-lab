@@ -89,6 +89,42 @@ playwright install chromium     # one-time, for real runs
 python examples/simple_form_task.py
 ```
 
+## Agents and the runner
+
+`agentic_qa_lab.agents` separates *deciding* from *doing*. An `Agent` is a pure
+function — `next_action(task, observation, trace) -> AgentAction` — that performs
+no I/O, so agents are trivial to test and swap.
+
+- **`RuleBasedAgent`** — the deterministic baseline. It replays a fixed action
+  plan, finishes early if the task's `success_selector` appears in the DOM, and
+  finishes cleanly once the plan is exhausted.
+- **`Runner`** — owns the observe → decide → act loop and the safeguards:
+  `max_steps`, `max_retries` (failed actions are retried up to the budget), and
+  a wall-clock `timeout_seconds`. It returns an aggregated `RunResult` whose
+  terminal `RunStatus` is one of `success`, `failure`, `timeout`, `max_steps`,
+  or `error`. Agent exceptions are caught and surface as `error` /
+  `AGENT_ERROR` rather than crashing the run.
+- **`write_trace_jsonl(run, path)`** — persists a run as JSONL: one `step`
+  record per trace step plus a final `summary` record.
+
+```python
+from agentic_qa_lab.agents import RuleBasedAgent, Runner, write_trace_jsonl
+from agentic_qa_lab.domain import AgentAction, TaskSpec
+
+task = TaskSpec(task_id="demo", goal="Submit", start_url="https://example.com/")
+agent = RuleBasedAgent([AgentAction.click("#submit"), AgentAction.finish()])
+# run = Runner().run(task, agent, env)   # env is any BrowserEnvironment
+# write_trace_jsonl(run, "artifacts/demo.jsonl")
+```
+
+### Failure modes
+
+- A non-terminal action that keeps failing past `max_retries` ends the run as
+  `failure` with the environment's `FailureCategory`.
+- Exceeding `max_steps` ends the run as `max_steps`.
+- Exceeding `timeout_seconds` ends the run as `timeout`.
+- A `finish` action with an unmet `success_selector` is treated as `failure`.
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.
