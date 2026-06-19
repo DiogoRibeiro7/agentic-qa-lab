@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from agentic_qa_lab.api import RunStore, create_app
+from agentic_qa_lab.domain import (
+    ActionResult,
+    AgentAction,
+    FailureCategory,
+    Observation,
+    RunResult,
+    RunStatus,
+    TraceStep,
+)
+
+
+def _run(status: RunStatus = RunStatus.SUCCESS) -> RunResult:
+    step = TraceStep(
+        index=0,
+        observation=Observation(step=0, url="https://e.com/", timestamp=1.0),
+        action=AgentAction.click("#go"),
+        result=ActionResult.ok(),
+    )
+    category = FailureCategory.NONE if status is RunStatus.SUCCESS else FailureCategory.TIMEOUT
+    return RunResult(
+        task_id="t1",
+        status=status,
+        failure_category=category,
+        steps=[step],
+        started_at=1.0,
+        ended_at=2.0,
+        duration_seconds=1.0,
+    )
+
+
+@pytest.fixture
+def client(tmp_path: Path) -> Iterator[TestClient]:
+    # Deterministic, monotonically increasing run ids for stable assertions.
+    counter = {"n": 0}
+
+    def next_id() -> str:
+        counter["n"] += 1
+        return f"run-{counter['n']:03d}"
+
+    store = RunStore(tmp_path / "runs", id_factory=next_id)
+    with TestClient(create_app(store)) as test_client:
+        yield test_client
+
+
+def test_health(client: TestClient) -> None:
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_create_and_get_run(client: TestClient) -> None:
+    resp = client.post("/runs", json=_run().model_dump(mode="json"))
+    assert resp.status_code == 201
+    run_id = resp.json()["run_id"]
+    assert run_id == "run-001"
+
+    got = client.get(f"/runs/{run_id}")
+    assert got.status_code == 200
+    assert got.json()["task_id"] == "t1"
+
+
+def test_list_runs(client: TestClient) -> None:
+    client.post("/runs", json=_run(RunStatus.SUCCESS).model_dump(mode="json"))
+    client.post("/runs", json=_run(RunStatus.TIMEOUT).model_dump(mode="json"))
+
+    listing = client.get("/runs").json()
+    assert len(listing) == 2
+    statuses = {row["status"] for row in listing}
+    assert statuses == {"success", "timeout"}
+    assert all("run_id" in row and "steps" in row for row in listing)
+
+
+def test_get_trace(client: TestClient) -> None:
+    run_id = client.post("/runs", json=_run().model_dump(mode="json")).json()["run_id"]
+    trace = client.get(f"/runs/{run_id}/trace").json()
+
+    assert len(trace) == 1
+    assert trace[0]["action"]["type"] == "click"
+
+
+def test_missing_run_returns_404(client: TestClient) -> None:
+    assert client.get("/runs/nope").status_code == 404
+    assert client.get("/runs/nope/trace").status_code == 404
+
+
+def test_create_rejects_invalid_run(client: TestClient) -> None:
+    # Successful status with a non-none failure category violates the model.
+    bad = _run().model_dump(mode="json")
+    bad["failure_category"] = "timeout"
+    assert client.post("/runs", json=bad).status_code == 422

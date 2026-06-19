@@ -1,8 +1,27 @@
 services:
-  agentic-qa:
+  api:
     build: .
-    command: python -m agentic_qa_lab.cli info
-    env_file:
-      - .env
+    command: uvicorn agentic_qa_lab.api.app:app --host 0.0.0.0 --port 8000
+    environment:
+      AGENTIC_QA_STORE_DIR: /data/runs
+    ports:
+      - "8000:8000"
     volumes:
-      - ./artifacts:/app/artifacts
+      - run-data:/data
+
+  dashboard:
+    build: .
+    command: >
+      streamlit run apps/dashboard/app.py
+      --server.address 0.0.0.0 --server.port 8501
+    environment:
+      AGENTIC_QA_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    volumes:
+      - run-data:/data
+
+volumes:
+  run-data:

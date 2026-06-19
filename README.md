@@ -181,6 +181,39 @@ agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir art
 (The console-script `agentic-qa` is registered via `pyproject.toml`; without an
 install, use `python -m agentic_qa_lab.cli benchmark ...`.)
 
+## API and dashboard
+
+A small web tier makes runs inspectable. By design the API ingests *completed*
+runs (the `Runner`/benchmark produce them) rather than launching browsers
+itself, so the web tier is stateless and browser-free.
+
+**FastAPI service** (`agentic_qa_lab.api`):
+
+| Method & path            | Purpose                          |
+| ------------------------ | -------------------------------- |
+| `GET  /health`           | liveness probe                   |
+| `POST /runs`             | store a `RunResult`, returns id  |
+| `GET  /runs`             | list run summaries               |
+| `GET  /runs/{id}`        | full `RunResult`                 |
+| `GET  /runs/{id}/trace`  | trace steps for a run            |
+
+Runs are persisted as one JSON file per run under `AGENTIC_QA_STORE_DIR`
+(default `artifacts/runs`).
+
+**Streamlit dashboard** (`apps/dashboard/app.py`) reads the API
+(`AGENTIC_QA_API_URL`) and offers a run-comparison table with a success-rate
+metric and a per-step trace viewer.
+
+```bash
+uvicorn agentic_qa_lab.api.app:app --reload          # API on :8000
+streamlit run apps/dashboard/app.py                  # dashboard on :8501
+# or both, with a shared storage volume:
+docker compose up --build                            # api :8000, dashboard :8501
+```
+
+Dashboard screenshots live in [docs/](docs/) once you have run the stack and
+captured them (`docs/dashboard_comparison.png`, `docs/dashboard_trace.png`).
+
 ## Portfolio signal
 
 This project shows that you can build agents that act in real software environments, not only generate text.
