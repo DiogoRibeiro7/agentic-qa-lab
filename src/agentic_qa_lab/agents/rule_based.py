@@ -61,7 +61,7 @@ class RuleBasedAgent:
 
     @staticmethod
     def _success_visible(task: TaskSpec, observation: Observation) -> bool:
-        """Return ``True`` when the success selector text is in the DOM."""
-        if task.success_selector is None or observation.dom_snapshot is None:
+        """Return ``True`` when the success marker is in the page's visible text."""
+        if task.success_selector is None:
             return False
-        return task.success_selector in observation.dom_snapshot
+        return observation.contains_marker(task.success_selector)

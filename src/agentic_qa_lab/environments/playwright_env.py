@@ -125,6 +125,7 @@ class PlaywrightEnvironment(BrowserEnvironment):
             url=self._page.url,
             title=self._safe_title(),
             dom_snapshot=self._safe_content(),
+            visible_text=self._safe_visible_text(),
             screenshot_path=screenshot_path,
             timestamp=time.time(),
             viewport=self._viewport,
@@ -141,6 +142,14 @@ class PlaywrightEnvironment(BrowserEnvironment):
         try:
             return str(self._page.content())
         except Exception:  # noqa: BLE001 - DOM snapshot is best-effort
+            return None
+
+    def _safe_visible_text(self) -> str | None:
+        # inner_text returns only rendered, visible text — no script source,
+        # comments, or display:none nodes — which is what success markers key on.
+        try:
+            return str(self._page.inner_text("body"))
+        except Exception:  # noqa: BLE001 - visible text is best-effort
             return None
 
     # ------------------------------------------------------------------ #

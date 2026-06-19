@@ -144,8 +144,7 @@ class Runner:
         if action.type is ActionType.FINISH:
             if task.success_selector is None:
                 return RunStatus.SUCCESS, FailureCategory.NONE
-            dom = observation.dom_snapshot or ""
-            if task.success_selector in dom:
+            if observation.contains_marker(task.success_selector):
                 return RunStatus.SUCCESS, FailureCategory.NONE
             return RunStatus.FAILURE, FailureCategory.UNKNOWN
 

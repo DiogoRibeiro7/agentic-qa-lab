@@ -51,11 +51,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Known issues & bug fixes ⬜
 
-- ⬜ **Substring success detection is fragile.** `RuleBasedAgent` and `Runner`
-  decide success with `success_selector in dom_snapshot`, which can match text
-  inside inline `<script>`/comments (worked around in the demo by externalising
-  JS). Replace with a proper Playwright locator/visibility check
-  (`page.get_by_text(...).is_visible()`), keeping substring as a fallback.
+- ✅ **Substring success detection is fragile.** Success now matches against an
+  `Observation.visible_text` channel (`body.inner_text()`) that excludes
+  `<script>` source, comments, and hidden nodes, falling back to `dom_snapshot`
+  only when visible text is unavailable.
 - ⬜ **Python version mismatch.** `pyproject.toml` pins `>=3.11,<3.13` while the
   project is developed/tested on 3.13. Widen the bound and add a CI matrix
   (3.11–3.13) to test what we actually support.
