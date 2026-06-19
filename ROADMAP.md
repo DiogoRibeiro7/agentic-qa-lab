@@ -122,7 +122,8 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
   use env-backed passwords instead of inline plaintext.
 - ✅ **Report exporters.** Benchmark exports now include `junit.xml` and an
   `allure-results/` directory alongside the existing CSV/JSON summaries.
-- ⬜ **Task pack.** Expand `tasks/real/` into a curated suite (forms, tables,
-  dynamic content, auth) with difficulty tiers for cross-agent comparison.
+- ✅ **Task pack.** Expanded `tasks/real/` into a curated suite covering auth,
+  dynamic controls, redirect navigation, and keyboard interaction, with
+  difficulty tiers for cross-agent comparison.
 - ⬜ **LLM judge.** Add an optional model-graded success check for tasks whose
   outcome is hard to assert via selectors.

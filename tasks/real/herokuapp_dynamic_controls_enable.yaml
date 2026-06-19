@@ -1,0 +1,16 @@
+# Real-site task: enable a disabled field via an async control update.
+task_id: herokuapp-dynamic-controls-enable
+goal: Enable the disabled input field.
+start_url: https://the-internet.herokuapp.com/dynamic_controls
+success_selector: It's enabled!
+max_steps: 8
+max_retries: 2
+timeout_seconds: 45
+metadata:
+  site: the-internet.herokuapp.com
+  category: dynamic
+  difficulty: medium
+plan:
+  - {type: click, selector: "button[onclick='swapInput()']"}
+  - {type: wait, duration_ms: 3500}
+  - {type: finish, reason: Enabled the input field.}

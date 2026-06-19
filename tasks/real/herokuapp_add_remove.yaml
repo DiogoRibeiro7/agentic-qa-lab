@@ -1,0 +1,15 @@
+# Real-site task: add a new dynamic element and confirm it appears.
+task_id: herokuapp-add-remove
+goal: Add a dynamic element so the Delete button appears.
+start_url: https://the-internet.herokuapp.com/add_remove_elements/
+success_selector: Delete
+max_steps: 6
+max_retries: 2
+timeout_seconds: 30
+metadata:
+  site: the-internet.herokuapp.com
+  category: dynamic
+  difficulty: easy
+plan:
+  - {type: click, selector: "text=Add Element"}
+  - {type: finish, reason: Added a dynamic element.}

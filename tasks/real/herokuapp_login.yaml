@@ -9,7 +9,7 @@ max_retries: 2
 timeout_seconds: 45
 metadata:
   site: the-internet.herokuapp.com
-  category: forms
+  category: auth
   difficulty: easy
 plan:
   - {type: type_text, selector: "#username", text: tomsmith}

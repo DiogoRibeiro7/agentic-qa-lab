@@ -1,0 +1,15 @@
+# Real-site task: send a key press and verify the reported key name.
+task_id: herokuapp-key-presses-enter
+goal: Press Enter in the key press demo.
+start_url: https://the-internet.herokuapp.com/key_presses
+success_selector: "You entered: ENTER"
+max_steps: 8
+max_retries: 2
+timeout_seconds: 30
+metadata:
+  site: the-internet.herokuapp.com
+  category: keyboard
+  difficulty: easy
+plan:
+  - {type: press_key, selector: "#target", key: Enter}
+  - {type: finish, reason: Sent the Enter key.}

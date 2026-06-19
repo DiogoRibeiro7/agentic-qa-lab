@@ -32,7 +32,7 @@ def test_real_task_dir_exists() -> None:
 
 def test_real_tasks_parse_and_are_well_formed() -> None:
     cases = _real_cases()
-    assert len(cases) >= 3, "expected several real-site tasks"
+    assert len(cases) >= 6, "expected an expanded real-site task pack"
 
     for case in cases:
         task = case.task
@@ -41,6 +41,15 @@ def test_real_tasks_parse_and_are_well_formed() -> None:
         assert case.plan, f"{task.task_id} needs a baseline plan"
         # A well-formed baseline plan ends by finishing.
         assert case.plan[-1].type is ActionType.FINISH, task.task_id
+
+
+def test_real_tasks_cover_multiple_categories_and_difficulties() -> None:
+    cases = _real_cases()
+    categories = {case.task.metadata.get("category") for case in cases}
+    difficulties = {case.task.metadata.get("difficulty") for case in cases}
+
+    assert {"auth", "dynamic", "keyboard"} <= categories
+    assert {"easy", "medium"} <= difficulties
 
 
 def test_real_task_ids_are_unique() -> None:

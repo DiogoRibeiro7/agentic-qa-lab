@@ -247,11 +247,14 @@ benchmark tasks against a real, public automation-practice site
 ([the-internet.herokuapp.com](https://the-internet.herokuapp.com)) with
 verified selectors and success markers:
 
-| Task | What it does |
-| ---- | ------------ |
-| `herokuapp-login` | Fills the login form and reaches the secure area |
-| `herokuapp-login-logout` | Logs in, then logs back out (multi-page workflow) |
-| `herokuapp-redirect` | Navigates from the index to the redirect page |
+| Task | Difficulty | What it does |
+| ---- | ---------- | ------------ |
+| `herokuapp-add-remove` | easy | Adds a dynamic element until the Delete button appears |
+| `herokuapp-key-presses-enter` | easy | Sends Enter to the key-press demo and verifies the reported key |
+| `herokuapp-login` | easy | Fills the login form and reaches the secure area |
+| `herokuapp-dynamic-controls-enable` | medium | Enables a disabled input after an async state change |
+| `herokuapp-login-logout` | medium | Logs in, then logs back out (multi-page workflow) |
+| `herokuapp-redirect` | medium | Navigates from the index to the redirect page |
 
 ```bash
 agentic-qa benchmark --tasks "tasks/real/*.yaml" --tasks "tasks/real/*.json"
