@@ -7,10 +7,12 @@ rest of the system depends only on domain types.
 
 from __future__ import annotations
 
+from .api_env import APIEnvironment
 from .base import BrowserEnvironment
 from .playwright_env import DEFAULT_TIMEOUT_MS, PlaywrightEnvironment
 
 __all__ = [
+    "APIEnvironment",
     "BrowserEnvironment",
     "DEFAULT_TIMEOUT_MS",
     "PlaywrightEnvironment",

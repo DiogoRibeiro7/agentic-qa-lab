@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
+from types import ModuleType
 
 
-def _load_dashboard_module():
+def _load_dashboard_module() -> ModuleType:
     path = Path("apps/dashboard/app.py")
     spec = importlib.util.spec_from_file_location("dashboard_app", path)
     assert spec is not None and spec.loader is not None

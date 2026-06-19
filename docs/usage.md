@@ -35,6 +35,20 @@ Example:
 agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --reflect
 ```
 
+## API environment
+
+For non-UI flows, `APIEnvironment` lets the same runner/agent loop drive HTTP
+requests instead of browser actions.
+
+Request-building conventions:
+
+- `type_text(..., selector="#method")`
+- `type_text(..., selector="#path")`
+- `type_text(..., selector="#body")`
+- `type_text(..., selector="#query:<name>")`
+- `type_text(..., selector="#header:<name>")`
+- `click("#send")`
+
 ## Run a benchmark
 
 ```bash
