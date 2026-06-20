@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import sys
+import types
 from typing import Any
+
+import pytest
 
 from agentic_qa_lab.domain import AgentAction, FailureCategory
 from agentic_qa_lab.environments import PlaywrightEnvironment
@@ -76,6 +80,60 @@ class FakePage:
         self.closed = True
 
 
+class BrokenMetaPage(FakePage):
+    def title(self) -> str:
+        raise RuntimeError("no title")
+
+    def content(self) -> str:
+        raise RuntimeError("no content")
+
+    def inner_text(self, selector: str) -> str:
+        raise RuntimeError("no visible text")
+
+
+class FakeBrowser:
+    def __init__(self) -> None:
+        self.page = FakePage()
+        self.closed = False
+        self.launch_headless: bool | None = None
+        self.viewport: dict[str, int] | None = None
+
+    def new_page(self, *, viewport: dict[str, int]) -> FakePage:
+        self.viewport = viewport
+        return self.page
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeChromium:
+    def __init__(self, browser: FakeBrowser) -> None:
+        self.browser = browser
+
+    def launch(self, *, headless: bool) -> FakeBrowser:
+        self.browser.launch_headless = headless
+        return self.browser
+
+
+class FakePlaywrightHandle:
+    def __init__(self, browser: FakeBrowser) -> None:
+        self.chromium = FakeChromium(browser)
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+class FakeSyncPlaywright:
+    def __init__(self, handle: FakePlaywrightHandle) -> None:
+        self.handle = handle
+        self.started = False
+
+    def start(self) -> FakePlaywrightHandle:
+        self.started = True
+        return self.handle
+
+
 def test_open_returns_observation() -> None:
     page = FakePage()
     env = PlaywrightEnvironment(page)
@@ -119,6 +177,27 @@ def test_coordinate_click_uses_mouse() -> None:
     assert page.mouse.clicks == [(10, 20)]
 
 
+def test_launch_builds_page_with_timeout_and_viewport(monkeypatch: pytest.MonkeyPatch) -> None:
+    browser = FakeBrowser()
+    sync_playwright = FakeSyncPlaywright(FakePlaywrightHandle(browser))
+    fake_module = types.SimpleNamespace(sync_playwright=lambda: sync_playwright)
+
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)
+
+    def set_default_timeout(ms: int) -> None:
+        browser.page.calls.append(("set_default_timeout", (ms,)))
+
+    browser.page.set_default_timeout = set_default_timeout  # type: ignore[attr-defined]
+
+    env = PlaywrightEnvironment.launch(headless=False, viewport=(800, 600), default_timeout_ms=1234)
+
+    assert sync_playwright.started is True
+    assert browser.launch_headless is False
+    assert browser.viewport == {"width": 800, "height": 600}
+    assert ("set_default_timeout", (1234,)) in browser.page.calls
+    env.close()
+
+
 def test_timeout_is_categorized() -> None:
     page = FakePage(raise_on="click", exc=FakeTimeoutError("timed out"))
     env = PlaywrightEnvironment(page)
@@ -137,6 +216,22 @@ def test_element_not_found_is_categorized() -> None:
 
     assert not result.success
     assert result.failure_category is FailureCategory.ELEMENT_NOT_FOUND
+
+
+def test_navigation_error_is_categorized() -> None:
+    assert (
+        PlaywrightEnvironment._categorize(  # noqa: SLF001
+            RuntimeError("navigation failed: net::ERR_ABORTED")
+        )
+        is FailureCategory.NAVIGATION_ERROR
+    )
+
+
+def test_unknown_error_is_categorized() -> None:
+    assert (
+        PlaywrightEnvironment._categorize(RuntimeError("mystery failure"))  # noqa: SLF001
+        is FailureCategory.UNKNOWN
+    )
 
 
 def test_terminal_actions_are_noops() -> None:
@@ -159,6 +254,17 @@ def test_screenshot_written_when_dir_set(tmp_path: Any) -> None:
     assert any(name == "screenshot" for name, _ in page.calls)
 
 
+def test_observe_handles_best_effort_metadata_failures() -> None:
+    page = BrokenMetaPage()
+    env = PlaywrightEnvironment(page)
+
+    obs = env.observe()
+
+    assert obs.title is None
+    assert obs.dom_snapshot is None
+    assert obs.visible_text is None
+
+
 def test_context_manager_closes_page() -> None:
     page = FakePage()
     with PlaywrightEnvironment(page) as env:
@@ -172,3 +278,17 @@ def test_close_is_idempotent() -> None:
     env.close()
     env.close()
     assert page.closed is True
+
+
+def test_close_also_closes_browser_and_stops_playwright() -> None:
+    page = FakePage()
+    browser = FakeBrowser()
+    browser.page = page
+    playwright = FakePlaywrightHandle(browser)
+    env = PlaywrightEnvironment(page, browser=browser, playwright=playwright)
+
+    env.close()
+
+    assert page.closed is True
+    assert browser.closed is True
+    assert playwright.stopped is True
