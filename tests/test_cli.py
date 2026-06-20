@@ -18,6 +18,7 @@ from agentic_qa_lab.cli import (
     app,
     build_agent,
     build_environment,
+    build_success_judge,
 )
 from agentic_qa_lab.domain import ActionResult, AgentAction, Observation, TaskSpec
 from agentic_qa_lab.environments import APIEnvironment, BrowserEnvironment, PlaywrightEnvironment
@@ -73,6 +74,36 @@ def test_build_llm_agent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
     agent = build_agent(_case(), AgentKind.LLM, ObservationMode.COMBINED)
     assert isinstance(agent, LLMPlannerAgent)
+
+
+def test_build_llm_agent_wraps_metered_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+
+    class FakeMeter:
+        total_tokens = 0
+        cost_usd = 0.0
+
+    agent = build_agent(_case(), AgentKind.LLM, ObservationMode.COMBINED, meter=FakeMeter())
+
+    assert isinstance(agent, LLMPlannerAgent)
+    assert type(agent._client).__name__ == "MeteredClient"  # noqa: SLF001
+
+
+def test_build_success_judge_returns_none_when_disabled() -> None:
+    assert build_success_judge(enabled=False) is None
+
+
+def test_build_success_judge_wraps_metered_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+
+    class FakeMeter:
+        total_tokens = 0
+        cost_usd = 0.0
+
+    judge = build_success_judge(enabled=True, meter=FakeMeter())
+
+    assert judge is not None
+    assert type(judge._client).__name__ == "MeteredClient"  # noqa: SLF001
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +190,20 @@ def test_resolve_environment_auto_detects_appium_case() -> None:
     assert _resolve_environment_kind(case, EnvironmentKind.AUTO) is EnvironmentKind.APPIUM
 
 
+def test_resolve_environment_auto_detects_api_metadata_case() -> None:
+    case = BenchmarkCase(
+        task=TaskSpec(
+            task_id="api-meta",
+            goal="g",
+            start_url="https://e.com/",
+            metadata={"environment": "api"},
+        ),
+        plan=[],
+    )
+
+    assert _resolve_environment_kind(case, EnvironmentKind.AUTO) is EnvironmentKind.API
+
+
 def test_load_capabilities_yaml(tmp_path: Path) -> None:
     path = tmp_path / "caps.yaml"
     path.write_text("platformName: Android\n", encoding="utf-8")
@@ -173,6 +218,14 @@ def test_load_capabilities_rejects_bad_extension(tmp_path: Path) -> None:
     path.write_text("nope", encoding="utf-8")
 
     with pytest.raises(ValueError, match="Unsupported capabilities"):
+        _load_capabilities(path)
+
+
+def test_load_capabilities_rejects_non_mapping_json(tmp_path: Path) -> None:
+    path = tmp_path / "caps.json"
+    path.write_text('["Android"]', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must contain a mapping/object"):
         _load_capabilities(path)
 
 
@@ -224,6 +277,31 @@ def test_build_environment_uses_appium_launch(
     assert isinstance(env, FakeEnv)
     assert seen["server"] == "http://127.0.0.1:4725"
     assert seen["capabilities"] == {"platformName": "Android"}
+
+
+def test_build_environment_uses_selenium_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_launch(*, headless: bool, screenshot_dir: Path | None = None) -> FakeEnv:
+        seen["headless"] = headless
+        seen["screenshot_dir"] = screenshot_dir
+        return FakeEnv()
+
+    monkeypatch.setattr(
+        "agentic_qa_lab.environments.SeleniumEnvironment.launch", staticmethod(fake_launch)
+    )
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="web", goal="g", start_url="https://e.com/"),
+        plan=[],
+    )
+
+    env = build_environment(case, EnvironmentKind.SELENIUM, screenshot_dir=tmp_path / "shots")
+
+    assert isinstance(env, FakeEnv)
+    assert seen["headless"] is True
+    assert seen["screenshot_dir"] == tmp_path / "shots"
 
 
 def test_run_command_exits_nonzero_on_failure(
@@ -375,12 +453,44 @@ def test_run_require_approval_approve_all_reuses_session(
     assert result.output.count("Approve risky action") == 1
 
 
+def test_run_require_approval_reprompts_on_invalid_choice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        "task_id: risky-reprompt\n"
+        "goal: delete something\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: click, selector: '#delete-account'}\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+    _patch_launch(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["run", "--task", str(path), "--require-approval", "--out-dir", str(tmp_path / "o")],
+        input="maybe\ny\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Enter 'y', 'a', or 'n'." in result.output
+
+
 def test_run_help_lists_command() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "run" in result.output
     assert "benchmark" in result.output
     assert "record" in result.output
+
+
+def test_info_command_prints_settings() -> None:
+    result = runner.invoke(app, ["info"])
+
+    assert result.exit_code == 0
+    assert "store_dir" in result.output
 
 
 def test_benchmark_command_uses_requested_environment(
@@ -413,6 +523,22 @@ def test_benchmark_command_uses_requested_environment(
 
     assert result.exit_code == 0, result.output
     assert seen == [EnvironmentKind.SELENIUM]
+
+
+def test_benchmark_command_exits_when_no_tasks_match(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "benchmark",
+            "--tasks",
+            str(tmp_path / "*.yaml"),
+            "--out-dir",
+            str(tmp_path / "bench"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "No task files matched." in result.output
 
 
 def test_record_command_writes_task_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -502,6 +628,50 @@ def test_record_command_can_emit_env_refs_for_secret_fields(
     text = out_file.read_text(encoding="utf-8")
     assert "AGENTIC_QA_PASSWORD" in text
     assert "super-secret" not in text
+
+
+def test_record_command_rejects_bad_secret_field(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "record",
+            "--task-id",
+            "rec-demo",
+            "--goal",
+            "Submit the form",
+            "--start-url",
+            "https://e.com/",
+            "--out-file",
+            str(tmp_path / "recorded.yaml"),
+            "--secret-field",
+            "#password",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--secret-field" in result.output
+
+
+def test_run_command_can_enable_self_heal_and_reflect(
+    monkeypatch: pytest.MonkeyPatch, task_file: Path, tmp_path: Path
+) -> None:
+    _patch_launch(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--task",
+            str(task_file),
+            "--self-heal",
+            "--reflect",
+            "--out-dir",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "success" in result.output
 
 
 def test_cli_module_has_app() -> None:
