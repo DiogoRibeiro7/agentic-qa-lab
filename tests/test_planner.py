@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentic_qa_lab.agents import LLMMessage, LLMPlannerAgent
+import pytest
+
+from agentic_qa_lab.agents import LLMMessage, LLMPlannerAgent, ObservationMode
+from agentic_qa_lab.agents import planner as planner_module
 from agentic_qa_lab.domain import (
     ActionResult,
     ActionType,
@@ -195,3 +198,118 @@ def test_prefers_structured_completion_when_available() -> None:
     assert action.type is ActionType.CLICK
     assert action.selector == "#go"
     assert llm.schemas[0]["required"] == ["type"]
+
+
+def test_combined_mode_attaches_screenshot_and_visual_hint() -> None:
+    llm = FakeLLM(['{"type": "finish", "reason": "done"}'])
+    observation = Observation(
+        step=0,
+        url="https://example.com/login",
+        title="Login",
+        dom_snapshot="<button id='go'>Go</button>",
+        screenshot_path="artifacts/login.png",
+        timestamp=1.0,
+    )
+
+    LLMPlannerAgent(llm, observation_mode=ObservationMode.COMBINED).next_action(
+        _task(), observation, []
+    )
+
+    system_msg, user_msg = llm.prompts[0]
+    assert "A SCREENSHOT of the current page is attached." in system_msg.content
+    assert user_msg.images == ("artifacts/login.png",)
+    assert "SCREENSHOT: attached" in user_msg.content
+
+
+def test_screenshot_mode_reports_unavailable_when_missing() -> None:
+    llm = FakeLLM(['{"type": "finish", "reason": "done"}'])
+
+    LLMPlannerAgent(llm, observation_mode=ObservationMode.SCREENSHOT_ONLY).next_action(
+        _task(), _obs(), []
+    )
+
+    user_msg = llm.prompts[0][1].content
+    assert "SCREENSHOT: unavailable" in user_msg
+    assert "PAGE SUMMARY:" not in user_msg
+
+
+def test_render_page_summary_falls_back_to_raw_dom_when_needed() -> None:
+    observation = Observation(
+        step=0,
+        url="https://example.com/login",
+        title="Login",
+        dom_snapshot="<div>plain content only</div>",
+        timestamp=1.0,
+    )
+
+    rendered = LLMPlannerAgent(FakeLLM([]), dom_char_limit=12)._render_page_summary(observation)
+
+    assert "DOM_FALLBACK:" in rendered
+    assert "<div>plai..." in rendered
+
+
+def test_render_history_marks_success_and_coordinate_targets() -> None:
+    trace = [
+        TraceStep(
+            index=1,
+            observation=_obs(),
+            action=AgentAction.model_validate({"type": "click", "x": 12, "y": 34}),
+            result=ActionResult.ok(),
+        )
+    ]
+
+    rendered = LLMPlannerAgent._render_history(trace)
+
+    assert "click (12, 34) -> ok" in rendered
+
+
+def test_fit_lines_to_token_budget_handles_empty_and_oversized_inputs() -> None:
+    assert LLMPlannerAgent._fit_lines_to_token_budget(["alpha"], token_budget=0) == "  (none)"
+
+    rendered = LLMPlannerAgent._fit_lines_to_token_budget(
+        ["this line is too large for a tiny budget"],
+        token_budget=2,
+    )
+
+    assert rendered.endswith("...")
+    assert "tiny" not in rendered
+
+
+def test_truncate_to_token_budget_returns_original_when_text_fits() -> None:
+    assert LLMPlannerAgent._truncate_to_token_budget("short text", token_budget=20) == "short text"
+
+
+def test_parse_action_rejects_non_object_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(planner_module, "_extract_json_object", lambda _reply: "[]")
+
+    with pytest.raises(ValueError, match="must be an object"):
+        LLMPlannerAgent._parse_action("ignored")
+
+
+def test_extract_json_object_rejects_unbalanced_input() -> None:
+    with pytest.raises(ValueError, match="Unbalanced JSON object"):
+        LLMPlannerAgent._parse_action('{"type": "click"')
+
+
+def test_summarize_interactive_dom_handles_empty_and_limit() -> None:
+    assert LLMPlannerAgent._summarize_interactive_dom("") == []
+
+    dom = (
+        "".join(f'<button id="b{i}">Button {i}</button>' for i in range(20))
+        + '<button id="named">Visible label text that should appear</button>'
+    )
+
+    summaries = LLMPlannerAgent._summarize_interactive_dom(dom)
+
+    assert len(summaries) == 12
+    assert summaries[0] == "button id=b0"
+
+
+def test_format_element_summary_includes_visible_text() -> None:
+    summary = LLMPlannerAgent._format_element_summary(
+        "button",
+        'id="submit" role="button"',
+        "Submit order",
+    )
+
+    assert summary == 'button id=submit role=button text="Submit order"'

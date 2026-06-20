@@ -179,6 +179,28 @@ def test_list_executions_returns_records(tmp_path: Path) -> None:
         assert payload.json()[0]["execution_id"] == "exec-001"
 
 
+def test_execute_run_records_failed_execution(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+
+    def fail_run_factory(_request: object) -> RunResult:
+        raise RuntimeError("boom")
+
+    execution_manager = RunExecutionManager(
+        store,
+        artifact_dir=tmp_path / "artifacts",
+        run_factory=fail_run_factory,
+        id_factory=lambda: "exec-001",
+    )
+    with TestClient(create_app(store, execution_manager)) as client:
+        queued = client.post("/runs/execute", json={"task_path": "tasks/example_login.yaml"})
+
+        assert queued.status_code == 202
+        record = _await_execution(client, "exec-001")
+        assert record["status"] == "failed"
+        assert record["error"] == "boom"
+        assert record["run_id"] is None
+
+
 def test_run_store_get_trace_and_missing_run(tmp_path: Path) -> None:
     store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
     record = store.create(_run())
@@ -304,3 +326,88 @@ def test_default_run_factory_uses_cli_environment_builder(
     assert seen["screenshot_dir"] is None
     assert seen["appium_server"] == "http://127.0.0.1:4725"
     assert seen["appium_capabilities_file"] == tmp_path / "caps.yaml"
+
+
+def test_default_run_factory_llm_path_applies_reflection_and_metering(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "task_id: web-demo\n"
+        "goal: finish quickly\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+
+    class FakeEnv:
+        def __enter__(self) -> FakeEnv:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+    class FakeRunner:
+        def __init__(self, *, stop_on_action_failure: bool, success_judge: object = None) -> None:
+            self.stop_on_action_failure = stop_on_action_failure
+            self.success_judge = success_judge
+
+        def run(self, task: object, agent: object, env: object) -> RunResult:
+            assert agent == ("reflective", "agent")
+            assert self.stop_on_action_failure is False
+            assert self.success_judge == "judge"
+            return _run()
+
+    seen: dict[str, object] = {}
+
+    def fake_build_agent(
+        case: object, kind: object, mode: object, *, meter: object = None
+    ) -> object:
+        assert meter is not None
+        meter.record(11, 7)
+        return "agent"
+
+    def fake_build_environment(
+        case: object,
+        kind: object,
+        *,
+        headless: bool = True,
+        screenshot_dir: Path | None = None,
+        appium_server: str = "http://127.0.0.1:4723",
+        appium_capabilities_file: Path | None = None,
+    ) -> FakeEnv:
+        seen["kind"] = kind
+        seen["screenshot_dir"] = screenshot_dir
+        return FakeEnv()
+
+    monkeypatch.setattr("agentic_qa_lab.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("agentic_qa_lab.cli.build_environment", fake_build_environment)
+    monkeypatch.setattr(
+        "agentic_qa_lab.cli.build_success_judge", lambda *, enabled, meter=None: "judge"
+    )
+    monkeypatch.setattr(
+        "agentic_qa_lab.agents.ReflectiveAgent", lambda inner: ("reflective", inner)
+    )
+    monkeypatch.setattr("agentic_qa_lab.api.execution.Runner", FakeRunner)
+
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+    manager = RunExecutionManager(store, artifact_dir=tmp_path / "artifacts")
+    try:
+        request = RunExecutionRequest(
+            task_path=task_path,
+            agent=ExecutionAgent.LLM,
+            reflect=True,
+            judge_success=True,
+            environment="playwright",
+            price_in=1.0,
+            price_out=2.0,
+        )
+        result = manager._default_run_factory(request)  # noqa: SLF001 - direct unit coverage
+    finally:
+        manager.close()
+
+    assert result.total_tokens == 18
+    assert result.cost_usd == pytest.approx(0.025)
+    assert str(seen["kind"]) == "playwright"
+    assert seen["screenshot_dir"] == tmp_path / "artifacts" / "web-demo" / "screenshots"
