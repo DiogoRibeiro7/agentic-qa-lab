@@ -10,10 +10,12 @@ from __future__ import annotations
 from .api_env import APIEnvironment
 from .base import BrowserEnvironment
 from .playwright_env import DEFAULT_TIMEOUT_MS, PlaywrightEnvironment
+from .selenium_env import SeleniumEnvironment
 
 __all__ = [
     "APIEnvironment",
     "BrowserEnvironment",
     "DEFAULT_TIMEOUT_MS",
     "PlaywrightEnvironment",
+    "SeleniumEnvironment",
 ]

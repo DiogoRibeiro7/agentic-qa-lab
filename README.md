@@ -75,7 +75,8 @@ Run the domain tests with `pytest tests/test_domain.py`.
 `agentic_qa_lab.environments` keeps all browser I/O behind the
 `BrowserEnvironment` interface so agents only ever speak in domain types.
 `PlaywrightEnvironment` is the reference browser adapter, and
-`APIEnvironment` supports non-UI HTTP flows through the same loop contract.
+`SeleniumEnvironment` and `APIEnvironment` support alternative browser and
+non-UI flows through the same loop contract.
 
 **`PlaywrightEnvironment`**:
 
@@ -94,6 +95,15 @@ Run the domain tests with `pytest tests/test_domain.py`.
 - Uses `click("#send")` to dispatch the prepared HTTP request.
 - Renders the last request and response into the observation text so rule-based
   or LLM planners can reason over API responses without a browser.
+
+**`SeleniumEnvironment`**:
+
+- Wraps a Selenium WebDriver behind the same `open` / `observe` / `execute`
+  contract as Playwright.
+- Supports selector clicks, text entry, key presses, waits, screenshots, and
+  structured `FailureCategory` mapping.
+- Can be launched lazily with Chromium via `SeleniumEnvironment.launch(...)` or
+  injected with a fake driver for unit tests.
 
 The adapter accepts an injected `page`, which makes it fully unit-testable with
 a fake — see `tests/test_environments.py` (no browser binaries required).

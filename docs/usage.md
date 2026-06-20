@@ -98,6 +98,12 @@ Request-building conventions:
 - `type_text(..., selector="#header:<name>")`
 - `click("#send")`
 
+## Selenium environment
+
+For a Selenium-backed browser adapter, use `SeleniumEnvironment` from
+`agentic_qa_lab.environments`. It mirrors the Playwright environment contract,
+including structured observations, screenshots, and shared failure taxonomy.
+
 ## Run a benchmark
 
 ```bash

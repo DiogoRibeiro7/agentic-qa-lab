@@ -74,10 +74,16 @@ class LLMSuccessJudge:
         trace: list[TraceStep],
     ) -> list[LLMMessage]:
         """Build the prompt shown to the semantic success judge."""
-        recent = "\n".join(
-            f"- {step.action.type.value} {step.action.selector or step.action.key or step.action.reason or ''}".strip()
-            for step in trace[-5:]
-        ) or "(no prior steps)"
+        recent = (
+            "\n".join(
+                (
+                    f"- {step.action.type.value} "
+                    f"{step.action.selector or step.action.key or step.action.reason or ''}"
+                ).strip()
+                for step in trace[-5:]
+            )
+            or "(no prior steps)"
+        )
         visible = observation.visible_text or "(none)"
         dom = (observation.dom_snapshot or "(none)")[:4_000]
         criteria = task.success_judge or "Judge whether the task goal is complete."
@@ -102,7 +108,9 @@ class LLMSuccessJudge:
                     "Decide whether the task has succeeded."
                 ),
                 images=(
-                    (observation.screenshot_path,) if observation.screenshot_path is not None else ()
+                    (observation.screenshot_path,)
+                    if observation.screenshot_path is not None
+                    else ()
                 ),
             ),
         ]
