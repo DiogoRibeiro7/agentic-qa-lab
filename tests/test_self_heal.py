@@ -161,6 +161,40 @@ def test_candidate_selectors_return_empty_without_dom_or_selector() -> None:
     )
 
 
+def test_candidate_selectors_support_type_text_and_press_key_priorities() -> None:
+    dom = """
+    <textarea id="message">Draft</textarea>
+    <select id="country">Portugal</select>
+    """
+
+    type_candidates = _candidate_selectors(dom, AgentAction.type_text("hi", selector="#message"))
+    press_candidates = _candidate_selectors(
+        dom, AgentAction.press_key("Enter", selector="#country")
+    )
+
+    assert "text=Draft" in type_candidates
+    assert "text=Portugal" in press_candidates
+
+
+def test_candidate_selectors_skip_zero_score_non_healable_actions_and_empty_candidates() -> None:
+    finish = AgentAction.finish("done").model_copy(update={"selector": "#missing"})
+    dom = "<option></option>"
+
+    assert _candidate_selectors(dom, finish) == []
+
+
+def test_candidate_selectors_deduplicate_and_skip_original_selector() -> None:
+    dom = """
+    <button id="submit">Submit</button>
+    <button id="submit">Submit</button>
+    """
+
+    candidates = _candidate_selectors(dom, AgentAction.click("#submit"))
+
+    assert "#submit" not in candidates
+    assert candidates.count("text=Submit") == 1
+
+
 def test_skips_candidates_that_already_failed() -> None:
     original = AgentAction.click("#missing")
     trace = [
@@ -206,6 +240,24 @@ def test_returns_proposed_when_shape_changed_since_failure() -> None:
     )
 
     assert healed == proposed
+
+
+def test_returns_proposed_when_all_candidates_already_failed_or_limited() -> None:
+    original = AgentAction.click("#missing")
+    trace = [
+        _failed_step(original),
+        TraceStep(
+            index=1,
+            observation=_obs(),
+            action=AgentAction.click("#submit"),
+            result=ActionResult.failed("boom", category=FailureCategory.ELEMENT_NOT_FOUND),
+        ),
+    ]
+    agent = SelfHealingAgent(StubAgent(original), max_candidates_per_action=1)
+
+    healed = agent.next_action(_task(), _obs(), trace)
+
+    assert healed == original
 
 
 def test_returns_proposed_for_terminal_or_unhealable_actions() -> None:
