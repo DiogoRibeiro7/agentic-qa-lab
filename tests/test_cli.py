@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -647,7 +648,12 @@ def test_record_command_rejects_bad_secret_field(tmp_path: Path) -> None:
     )
 
     assert result.exit_code != 0
-    assert "--secret-field" in result.output
+    # Rich wraps the error inside a bordered panel and breaks long option names
+    # across lines at narrow terminal widths (e.g. CI's 80 columns). Strip ANSI
+    # codes, panel borders, and whitespace so the assertion is width-independent.
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    plain = re.sub(r"[\s│╭╮╰╯─]", "", plain)
+    assert "--secret-field" in plain
 
 
 def test_run_command_can_enable_self_heal_and_reflect(
