@@ -529,6 +529,7 @@ unit suite and CI stay green without browser binaries).
 ```bash
 poetry install --with dev
 poetry run playwright install
+cp .env.example .env   # then fill in LLM_API_KEY etc. (optional; only the llm agent needs it)
 ```
 
 ### Run locally
