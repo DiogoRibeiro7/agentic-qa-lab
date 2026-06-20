@@ -28,6 +28,7 @@ Useful variants:
 - `--mode combined` to attach both DOM-derived context and screenshots.
 - `--reflect` to enable the settle-and-retry repair loop.
 - `--self-heal` to retry `element_not_found` actions with DOM-derived selector alternatives.
+- `--judge-success` to enable model-graded success checks for tasks that define `success_judge`.
 - `--require-approval` to prompt before risky actions.
 
 Example:
@@ -61,6 +62,27 @@ plan:
 
 `load_case` and the CLI resolve `{env: VAR_NAME}` before validating the
 `AgentAction`. If the variable is missing, task loading fails fast.
+
+## Semantic success judging
+
+For tasks whose completion is not a simple text/selector match, add a natural-
+language success rubric:
+
+```yaml
+task_id: semantic-demo
+goal: Confirm the report was published.
+start_url: https://example.com/reports
+success_judge: The page should clearly indicate that the report is published and visible to the user.
+plan:
+  - {type: finish, reason: Publication flow completed.}
+```
+
+Then enable judging at runtime:
+
+```bash
+agentic-qa run --task tasks/semantic_demo.yaml --judge-success
+agentic-qa benchmark --tasks "tasks/*.yaml" --judge-success
+```
 
 ## API environment
 

@@ -26,6 +26,7 @@ from ..domain import (
 )
 from ..environments import BrowserEnvironment
 from .base import Agent
+from .judge import JudgeVerdict, SuccessJudge
 
 
 class Runner:
@@ -51,10 +52,12 @@ class Runner:
         monotonic: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time,
         stop_on_action_failure: bool = True,
+        success_judge: SuccessJudge | None = None,
     ) -> None:
         self._monotonic = monotonic
         self._wall_clock = wall_clock
         self._stop_on_action_failure = stop_on_action_failure
+        self._success_judge = success_judge
 
     def run(self, task: TaskSpec, agent: Agent, env: BrowserEnvironment) -> RunResult:
         """Run ``agent`` against ``env`` for ``task`` and return the result."""
@@ -82,11 +85,10 @@ class Runner:
 
             result, retries = self._execute_with_retries(env, action, task.max_retries)
             total_retries += retries
+            action, terminal = self._resolve_terminal(task, action, result, observation, steps)
             steps.append(
                 TraceStep(index=index, observation=observation, action=action, result=result)
             )
-
-            terminal = self._resolve_terminal(task, action, result, observation)
             if terminal is None and not result.success and self._stop_on_action_failure:
                 terminal = (RunStatus.FAILURE, result.failure_category)
             if terminal is not None:
@@ -126,29 +128,48 @@ class Runner:
         # Surface the accumulated retry count on the returned result.
         return result.model_copy(update={"retries": retries}), retries
 
-    @staticmethod
     def _resolve_terminal(
+        self,
         task: TaskSpec,
         action: AgentAction,
         result: ActionResult,
         observation: Observation,
-    ) -> tuple[RunStatus, FailureCategory] | None:
+        steps: list[TraceStep],
+    ) -> tuple[AgentAction, tuple[RunStatus, FailureCategory] | None]:
         """Map a step outcome to a terminal status, or ``None`` to continue.
 
         A failed non-terminal action is *not* resolved here; that policy lives
         in :meth:`run` so it can honour ``stop_on_action_failure``.
         """
         if action.type is ActionType.FAIL:
-            return RunStatus.FAILURE, FailureCategory.UNKNOWN
+            return action, (RunStatus.FAILURE, FailureCategory.UNKNOWN)
 
         if action.type is ActionType.FINISH:
             if task.success_selector is None:
-                return RunStatus.SUCCESS, FailureCategory.NONE
+                if task.success_judge and self._success_judge is not None:
+                    verdict = self._success_judge.evaluate(task, observation, steps)
+                    action = self._apply_judge_reason(action, verdict)
+                    if verdict.success:
+                        return action, (RunStatus.SUCCESS, FailureCategory.NONE)
+                    return action, (RunStatus.FAILURE, FailureCategory.JUDGE_REJECTED)
+                return action, (RunStatus.SUCCESS, FailureCategory.NONE)
             if observation.contains_marker(task.success_selector):
-                return RunStatus.SUCCESS, FailureCategory.NONE
-            return RunStatus.FAILURE, FailureCategory.UNKNOWN
+                return action, (RunStatus.SUCCESS, FailureCategory.NONE)
+            if task.success_judge and self._success_judge is not None:
+                verdict = self._success_judge.evaluate(task, observation, steps)
+                action = self._apply_judge_reason(action, verdict)
+                if verdict.success:
+                    return action, (RunStatus.SUCCESS, FailureCategory.NONE)
+                return action, (RunStatus.FAILURE, FailureCategory.JUDGE_REJECTED)
+            return action, (RunStatus.FAILURE, FailureCategory.UNKNOWN)
 
-        return None
+        return action, None
+
+    @staticmethod
+    def _apply_judge_reason(action: AgentAction, verdict: JudgeVerdict) -> AgentAction:
+        """Attach the judge rationale to a terminal action's reason text."""
+        base = action.reason or "finish"
+        return action.model_copy(update={"reason": f"{base} | judge: {verdict.reason}"})
 
     def _error_step(self, index: int, observation: Observation, message: str) -> TraceStep:
         """Build a trace step recording an agent-side exception."""

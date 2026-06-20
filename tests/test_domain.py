@@ -73,6 +73,7 @@ def test_task_spec_defaults() -> None:
     assert task.max_steps == 25
     assert task.max_retries == 2
     assert task.timeout_seconds > 0
+    assert task.success_judge is None
 
 
 def test_task_spec_step_bounds() -> None:

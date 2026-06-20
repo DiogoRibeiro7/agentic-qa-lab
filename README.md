@@ -43,7 +43,8 @@ models with strict validation and no I/O, so they serialize cleanly and are easy
 to test.
 
 - **`TaskSpec`** — declarative description of a task: goal, `start_url`, an
-  optional `success_selector`, and run safeguards (`max_steps`, `max_retries`,
+  optional `success_selector`, an optional `success_judge` rubric for
+  semantic success checks, and run safeguards (`max_steps`, `max_retries`,
   `timeout_seconds`).
 - **`Observation`** — a multimodal snapshot of environment state: URL, title,
   DOM snapshot, optional screenshot path, timestamp, and viewport.
@@ -116,7 +117,9 @@ no I/O, so agents are trivial to test and swap.
   a wall-clock `timeout_seconds`. It returns an aggregated `RunResult` whose
   terminal `RunStatus` is one of `success`, `failure`, `timeout`, `max_steps`,
   or `error`. Agent exceptions are caught and surface as `error` /
-  `AGENT_ERROR` rather than crashing the run.
+  `AGENT_ERROR` rather than crashing the run. When enabled, an optional
+  `LLMSuccessJudge` can also grade `finish` actions against a task's
+  `success_judge` rubric.
 - **`write_trace_jsonl(run, path)`** — persists a run as JSONL: one `step`
   record per trace step plus a final `summary` record.
 
@@ -137,6 +140,8 @@ agent = RuleBasedAgent([AgentAction.click("#submit"), AgentAction.finish()])
 - Exceeding `max_steps` ends the run as `max_steps`.
 - Exceeding `timeout_seconds` ends the run as `timeout`.
 - A `finish` action with an unmet `success_selector` is treated as `failure`.
+- A `finish` action may still resolve to `success` when an enabled
+  `success_judge` semantically approves the final page state.
 
 ## LLM planner
 
@@ -214,6 +219,9 @@ agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --ref
 # One task with selector self-healing enabled
 agentic-qa run --task tasks/example_login.yaml --self-heal
 
+# One task with semantic success judging enabled
+agentic-qa run --task tasks/example_login.yaml --judge-success
+
 # Record a manual browser session into a reusable task file
 agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml
 
@@ -222,13 +230,17 @@ agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir art
 
 # Run two benchmark cases at a time
 agentic-qa benchmark --tasks "tasks/real/*.yaml" --workers 2
+
+# Benchmark with semantic success judging enabled for tasks that define it
+agentic-qa benchmark --tasks "tasks/*.yaml" --judge-success
 ```
 
 `run` exits non-zero when the task does not succeed, so it composes in scripts
 and CI. `--agent` selects `rule` or `llm`; `--mode` sets the LLM grounding
 channel; `--reflect` wraps the agent in the repair loop (and lets failed actions
 stay in the trace for recovery); `--self-heal` retries repeated
-`element_not_found` actions with DOM-derived selector alternatives.
+`element_not_found` actions with DOM-derived selector alternatives; and
+`--judge-success` enables the optional model-graded `success_judge` task rubric.
 
 `record` launches a browser for manual interaction, captures clicks, field
 edits, and key presses, then writes a standard task file containing the

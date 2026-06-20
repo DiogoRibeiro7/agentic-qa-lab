@@ -21,6 +21,9 @@ class TaskSpec(BaseModel):
         Initial page/URL the environment should open.
     success_selector:
         Optional selector whose presence signals success.
+    success_judge:
+        Optional natural-language success rubric evaluated by an LLM judge when
+        enabled at runtime.
     max_steps:
         Hard cap on the number of agent steps.
     max_retries:
@@ -35,6 +38,7 @@ class TaskSpec(BaseModel):
     goal: str = Field(min_length=1)
     start_url: str = Field(min_length=1)
     success_selector: str | None = Field(default=None)
+    success_judge: str | None = Field(default=None)
     max_steps: int = Field(default=25, ge=1, le=1000)
     max_retries: int = Field(default=2, ge=0, le=20)
     timeout_seconds: float = Field(default=120.0, gt=0)

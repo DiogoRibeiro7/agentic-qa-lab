@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentic_qa_lab.agents import RuleBasedAgent, Runner, write_trace_jsonl
+from agentic_qa_lab.agents import JudgeVerdict, RuleBasedAgent, Runner, write_trace_jsonl
 from agentic_qa_lab.domain import (
     ActionResult,
     AgentAction,
@@ -67,6 +67,16 @@ def _task(**kwargs: object) -> TaskSpec:
     return TaskSpec.model_validate(base)
 
 
+class StubJudge:
+    def __init__(self, verdict: JudgeVerdict) -> None:
+        self._verdict = verdict
+
+    def evaluate(
+        self, task: TaskSpec, observation: Observation, trace: list[TraceStep]
+    ) -> JudgeVerdict:
+        return self._verdict
+
+
 # --------------------------------------------------------------------------- #
 # RuleBasedAgent
 # --------------------------------------------------------------------------- #
@@ -122,6 +132,32 @@ def test_runner_success_with_selector_present() -> None:
     # Agent will finish early because the selector is visible.
     run = Runner().run(_task(success_selector="Welcome"), RuleBasedAgent(plan), env)
     assert run.status is RunStatus.SUCCESS
+
+
+def test_runner_can_succeed_via_llm_judge() -> None:
+    env = FakeEnv(dom="<html>no simple marker</html>")
+    judge = StubJudge(JudgeVerdict(success=True, reason="semantic success"))
+    run = Runner(success_judge=judge).run(
+        _task(success_judge="The task is complete if the confirmation state is visible."),
+        RuleBasedAgent([AgentAction.finish("done")]),
+        env,
+    )
+
+    assert run.status is RunStatus.SUCCESS
+    assert "judge: semantic success" in (run.steps[-1].action.reason or "")
+
+
+def test_runner_can_fail_via_llm_judge() -> None:
+    env = FakeEnv(dom="<html>no simple marker</html>")
+    judge = StubJudge(JudgeVerdict(success=False, reason="confirmation missing"))
+    run = Runner(success_judge=judge).run(
+        _task(success_judge="The task is complete if the confirmation state is visible."),
+        RuleBasedAgent([AgentAction.finish("done")]),
+        env,
+    )
+
+    assert run.status is RunStatus.FAILURE
+    assert run.failure_category is FailureCategory.JUDGE_REJECTED
 
 
 # --------------------------------------------------------------------------- #

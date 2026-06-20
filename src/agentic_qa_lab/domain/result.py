@@ -31,6 +31,7 @@ class FailureCategory(StrEnum):
     INVALID_ACTION = "invalid_action"
     MAX_STEPS_EXCEEDED = "max_steps_exceeded"
     AGENT_ERROR = "agent_error"
+    JUDGE_REJECTED = "judge_rejected"
     UNKNOWN = "unknown"
 
 

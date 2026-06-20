@@ -14,7 +14,7 @@ from .agents import ApprovalDecision, ObservationMode
 from .config import RuntimeSettings
 
 if TYPE_CHECKING:
-    from .agents import Agent, LLMClient, TokenMeter
+    from .agents import Agent, LLMClient, SuccessJudge, TokenMeter
     from .domain import AgentAction
     from .evaluation import BenchmarkCase
 
@@ -57,6 +57,18 @@ def build_agent(
     return LLMPlannerAgent(client, observation_mode=mode)
 
 
+def build_success_judge(*, enabled: bool, meter: TokenMeter | None = None) -> SuccessJudge | None:
+    """Construct an optional LLM-backed semantic success judge."""
+    if not enabled:
+        return None
+    from .agents import LLMSuccessJudge, MeteredClient, OpenAICompatibleClient
+
+    client: LLMClient = OpenAICompatibleClient()
+    if meter is not None:
+        client = MeteredClient(client, meter)
+    return LLMSuccessJudge(client)
+
+
 def _console_approver(action: AgentAction) -> ApprovalDecision:
     """Approver that asks the operator to confirm a risky action on the console."""
     target = action.selector or (action.x, action.y)
@@ -93,6 +105,9 @@ def benchmark(
         int,
         typer.Option("--workers", min=1, help="Number of benchmark cases to run concurrently."),
     ] = 1,
+    judge_success: Annotated[
+        bool, typer.Option(help="Enable LLM judging for tasks that define success_judge.")
+    ] = False,
     headless: Annotated[bool, typer.Option(help="Run the browser headless.")] = True,
 ) -> None:
     """Run the rule-based baseline over tasks and export summary metrics.
@@ -101,7 +116,7 @@ def benchmark(
     Playwright browser is launched per task. Requires Chromium binaries
     (``playwright install chromium``).
     """
-    from .agents import RuleBasedAgent
+    from .agents import RuleBasedAgent, Runner
     from .environments import PlaywrightEnvironment
     from .evaluation import (
         BenchmarkRunner,
@@ -125,7 +140,10 @@ def benchmark(
         """Launch a fresh Playwright environment for a benchmark case."""
         return PlaywrightEnvironment.launch(headless=headless)
 
-    results = BenchmarkRunner().run(cases, make_agent, make_env, workers=workers)
+    judge = build_success_judge(enabled=judge_success)
+    results = BenchmarkRunner(runner=Runner(success_judge=judge)).run(
+        cases, make_agent, make_env, workers=workers
+    )
     csv_path, json_path = export_results(results, out_dir)
     summary = compute_summary(results)
 
@@ -221,6 +239,9 @@ def run(
         bool,
         typer.Option(help="Retry element-not-found actions with nearby selector alternatives."),
     ] = False,
+    judge_success: Annotated[
+        bool, typer.Option(help="Enable LLM judging for tasks that define success_judge.")
+    ] = False,
     require_approval: Annotated[
         bool,
         typer.Option(
@@ -255,7 +276,7 @@ def run(
     case = load_case(task)
     meter = (
         TokenMeter(price_per_1k_input=price_in, price_per_1k_output=price_out)
-        if agent is AgentKind.LLM
+        if agent is AgentKind.LLM or judge_success
         else None
     )
     chosen = build_agent(case, agent, mode, meter=meter)
@@ -266,7 +287,8 @@ def run(
     if require_approval:
         # Gate risky actions outermost, so it sees what would actually execute.
         chosen = ApprovalAgent(chosen, approver=_console_approver)
-    runner = Runner(stop_on_action_failure=not reflect)
+    judge = build_success_judge(enabled=judge_success, meter=meter)
+    runner = Runner(stop_on_action_failure=not reflect, success_judge=judge)
 
     screenshots = out_dir / case.task.task_id / "screenshots"
     with PlaywrightEnvironment.launch(headless=headless, screenshot_dir=screenshots) as env:

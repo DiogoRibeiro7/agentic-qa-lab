@@ -125,5 +125,6 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Task pack.** Expanded `tasks/real/` into a curated suite covering auth,
   dynamic controls, redirect navigation, and keyboard interaction, with
   difficulty tiers for cross-agent comparison.
-- ⬜ **LLM judge.** Add an optional model-graded success check for tasks whose
-  outcome is hard to assert via selectors.
+- ✅ **LLM judge.** Added optional `success_judge` task rubrics plus an
+  `LLMSuccessJudge` that can semantically grade `finish` actions when
+  `agentic-qa run/benchmark --judge-success` is enabled.

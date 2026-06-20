@@ -127,6 +127,41 @@ def test_run_command_exits_nonzero_on_failure(
     assert result.exit_code == 1
 
 
+def test_run_command_can_enable_success_judge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        "task_id: judged\n"
+        "goal: semantic success\n"
+        "start_url: https://e.com/\n"
+        "success_judge: page shows success semantically\n"
+        "plan:\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+    _patch_launch(monkeypatch)
+
+    class AlwaysPassJudge:
+        def evaluate(self, task: TaskSpec, observation: Observation, trace: list[object]) -> object:
+            from agentic_qa_lab.agents import JudgeVerdict
+
+            return JudgeVerdict(success=True, reason="semantic success")
+
+    monkeypatch.setattr(
+        cli,
+        "build_success_judge",
+        lambda *, enabled, meter=None: AlwaysPassJudge(),
+    )
+    result = runner.invoke(
+        app,
+        ["run", "--task", str(path), "--judge-success", "--out-dir", str(tmp_path / "o")],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "success" in result.output
+
+
 def test_run_require_approval_denied_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Plan performs a risky click; declining approval must stop the run (exit 1).
     path = tmp_path / "task.yaml"
