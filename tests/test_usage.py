@@ -146,6 +146,40 @@ def test_metered_client_records_structured_completion() -> None:
     assert meter.output_tokens >= 1
 
 
+def test_metered_client_structured_completion_prefers_real_usage() -> None:
+    meter = TokenMeter()
+    inner = StructuredEchoLLM({"type": "click"})
+    inner.last_usage = Usage(input_tokens=321, output_tokens=12)
+    client = MeteredClient(inner, meter)
+
+    reply = client.complete_json(
+        [LLMMessage(role="user", content="a" * 400)],
+        schema_name="agent_action",
+        schema={"type": "object"},
+    )
+
+    assert reply["type"] == "click"
+    assert meter.input_tokens == 321
+    assert meter.output_tokens == 12
+
+
+def test_metered_client_complete_json_rejects_non_structured_inner() -> None:
+    meter = TokenMeter()
+    inner = EchoLLM("ok")
+    client = MeteredClient(inner, meter)
+
+    try:
+        client.complete_json(
+            [LLMMessage(role="user", content="hello")],
+            schema_name="agent_action",
+            schema={"type": "object"},
+        )
+    except TypeError as exc:
+        assert "structured completion" in str(exc).lower()
+    else:
+        raise AssertionError("Expected complete_json to reject non-structured inner client")
+
+
 # --------------------------------------------------------------------------- #
 # Metrics: latency + cost aggregation
 # --------------------------------------------------------------------------- #
