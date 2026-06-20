@@ -33,11 +33,18 @@ Request body:
   "agent": "rule",
   "mode": "dom_only",
   "reflect": false,
-  "headless": true
+  "environment": "auto",
+  "judge_success": false,
+  "headless": true,
+  "appium_server": "http://127.0.0.1:4723",
+  "appium_capabilities_file": null
 }
 ```
 
 Returns a `RunExecutionRecord` in `queued` state (or `running` quickly after).
+
+The execution worker uses the same environment-selection path as the CLI, so
+`environment` can be `auto`, `playwright`, `selenium`, `appium`, or `api`.
 
 ### `GET /executions`
 

@@ -48,7 +48,11 @@ class RunExecutionRequest(BaseModel):
     agent: ExecutionAgent = Field(default=ExecutionAgent.RULE)
     mode: ObservationMode = Field(default=ObservationMode.DOM_ONLY)
     reflect: bool = Field(default=False)
+    environment: str = Field(default="auto")
+    judge_success: bool = Field(default=False)
     headless: bool = Field(default=True)
+    appium_server: str = Field(default="http://127.0.0.1:4723")
+    appium_capabilities_file: Path | None = None
     price_in: float = Field(default=0.0, ge=0.0)
     price_out: float = Field(default=0.0, ge=0.0)
 
@@ -62,7 +66,11 @@ class RunExecutionRecord(BaseModel):
     agent: ExecutionAgent
     mode: ObservationMode
     reflect: bool
+    environment: str
+    judge_success: bool
     headless: bool
+    appium_server: str
+    appium_capabilities_file: str | None = None
     run_id: str | None = None
     error: str | None = None
     submitted_at: float = Field(gt=0)
@@ -109,7 +117,15 @@ class RunExecutionManager:
             agent=request.agent,
             mode=request.mode,
             reflect=request.reflect,
+            environment=request.environment,
+            judge_success=request.judge_success,
             headless=request.headless,
+            appium_server=request.appium_server,
+            appium_capabilities_file=(
+                str(request.appium_capabilities_file)
+                if request.appium_capabilities_file is not None
+                else None
+            ),
             submitted_at=time.time(),
         )
         with self._lock:
@@ -176,8 +192,13 @@ class RunExecutionManager:
     def _default_run_factory(self, request: RunExecutionRequest) -> RunResult:
         """Execute one task file using the same runtime path as the CLI."""
         from ..agents import ReflectiveAgent
-        from ..cli import AgentKind, build_agent
-        from ..environments import PlaywrightEnvironment
+        from ..cli import (
+            AgentKind,
+            EnvironmentKind,
+            build_agent,
+            build_environment,
+            build_success_judge,
+        )
 
         case: BenchmarkCase = load_case(request.task_path)
         meter = (
@@ -191,11 +212,18 @@ class RunExecutionManager:
         agent = build_agent(case, AgentKind(request.agent.value), request.mode, meter=meter)
         if request.reflect:
             agent = ReflectiveAgent(agent)
-        runner = Runner(stop_on_action_failure=not request.reflect)
+        judge = build_success_judge(enabled=request.judge_success, meter=meter)
+        runner = Runner(stop_on_action_failure=not request.reflect, success_judge=judge)
         screenshots = self._artifact_dir / case.task.task_id / "screenshots"
-        with PlaywrightEnvironment.launch(
+        resolved_environment = EnvironmentKind(request.environment)
+        screenshot_target = screenshots if resolved_environment is not EnvironmentKind.API else None
+        with build_environment(
+            case,
+            resolved_environment,
             headless=request.headless,
-            screenshot_dir=screenshots,
+            screenshot_dir=screenshot_target,
+            appium_server=request.appium_server,
+            appium_capabilities_file=request.appium_capabilities_file,
         ) as env:
             result = runner.run(case.task, agent, env)
         if meter is not None:

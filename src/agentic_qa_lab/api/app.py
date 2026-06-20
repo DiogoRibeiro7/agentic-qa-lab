@@ -1,9 +1,8 @@
-"""FastAPI service exposing stored runs and their traces.
+"""FastAPI service exposing stored runs, traces, and queued executions.
 
-Design note: the API ingests *completed* runs rather than launching browsers
-itself. The :class:`Runner`/benchmark produce :class:`RunResult` objects; this
-service stores them and serves them to the dashboard. That keeps the web tier
-stateless and free of browser dependencies.
+The API still accepts completed :class:`RunResult` payloads through ``POST
+/runs``, but it can also launch fresh task-file executions locally through a
+lightweight background worker used by the dashboard.
 
 Endpoints
 ---------

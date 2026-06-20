@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from agentic_qa_lab.api import RunExecutionManager, RunStore, create_app
 from agentic_qa_lab.api.app import create_app as create_default_app
+from agentic_qa_lab.api.execution import ExecutionAgent, RunExecutionRequest
 from agentic_qa_lab.domain import (
     ActionResult,
     AgentAction,
@@ -176,3 +177,95 @@ def test_list_executions_returns_records(tmp_path: Path) -> None:
         payload = client.get("/executions")
         assert payload.status_code == 200
         assert payload.json()[0]["execution_id"] == "exec-001"
+
+
+def test_execute_run_request_accepts_environment_options(tmp_path: Path) -> None:
+    caps = tmp_path / "caps.json"
+    request = RunExecutionRequest(
+        task_path=Path("tasks/example_login.yaml"),
+        agent=ExecutionAgent.LLM,
+        environment="appium",
+        judge_success=True,
+        appium_server="http://127.0.0.1:4725",
+        appium_capabilities_file=caps,
+    )
+
+    assert request.environment == "appium"
+    assert request.judge_success is True
+    assert request.appium_server == "http://127.0.0.1:4725"
+    assert request.appium_capabilities_file == caps
+
+
+def test_default_run_factory_uses_cli_environment_builder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "task_id: api-demo\n"
+        "goal: finish quickly\n"
+        "start_url: https://api.example.com/\n"
+        "plan:\n"
+        "  - {type: type_text, selector: '#method', text: GET}\n"
+        "  - {type: click, selector: '#send'}\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+
+    class FakeEnv:
+        def __enter__(self) -> FakeEnv:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+    class FakeRunner:
+        def __init__(self, *, stop_on_action_failure: bool, success_judge: object = None) -> None:
+            self.stop_on_action_failure = stop_on_action_failure
+            self.success_judge = success_judge
+
+        def run(self, task: object, agent: object, env: object) -> RunResult:
+            return _run()
+
+    seen: dict[str, object] = {}
+
+    def fake_build_environment(
+        case: object,
+        kind: object,
+        *,
+        headless: bool = True,
+        screenshot_dir: Path | None = None,
+        appium_server: str = "http://127.0.0.1:4723",
+        appium_capabilities_file: Path | None = None,
+    ) -> FakeEnv:
+        seen["kind"] = kind
+        seen["headless"] = headless
+        seen["screenshot_dir"] = screenshot_dir
+        seen["appium_server"] = appium_server
+        seen["appium_capabilities_file"] = appium_capabilities_file
+        return FakeEnv()
+
+    monkeypatch.setattr("agentic_qa_lab.cli.build_environment", fake_build_environment)
+    monkeypatch.setattr(
+        "agentic_qa_lab.cli.build_success_judge", lambda *, enabled, meter=None: None
+    )
+    monkeypatch.setattr("agentic_qa_lab.api.execution.Runner", FakeRunner)
+
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+    manager = RunExecutionManager(store, artifact_dir=tmp_path / "artifacts")
+    try:
+        request = RunExecutionRequest(
+            task_path=task_path,
+            environment="api",
+            headless=False,
+            appium_server="http://127.0.0.1:4725",
+            appium_capabilities_file=tmp_path / "caps.yaml",
+        )
+        manager._default_run_factory(request)  # noqa: SLF001 - direct unit coverage
+    finally:
+        manager.close()
+
+    assert str(seen["kind"]) == "api"
+    assert seen["headless"] is False
+    assert seen["screenshot_dir"] is None
+    assert seen["appium_server"] == "http://127.0.0.1:4725"
+    assert seen["appium_capabilities_file"] == tmp_path / "caps.yaml"
