@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -16,6 +18,7 @@ from .config import RuntimeSettings
 if TYPE_CHECKING:
     from .agents import Agent, LLMClient, SuccessJudge, TokenMeter
     from .domain import AgentAction
+    from .environments import BrowserEnvironment
     from .evaluation import BenchmarkCase
 
 app = typer.Typer(help="Portfolio project command line interface.")
@@ -27,6 +30,16 @@ class AgentKind(StrEnum):
 
     RULE = "rule"
     LLM = "llm"
+
+
+class EnvironmentKind(StrEnum):
+    """Selectable environment implementations for CLI execution."""
+
+    AUTO = "auto"
+    PLAYWRIGHT = "playwright"
+    SELENIUM = "selenium"
+    APPIUM = "appium"
+    API = "api"
 
 
 def build_agent(
@@ -69,6 +82,81 @@ def build_success_judge(*, enabled: bool, meter: TokenMeter | None = None) -> Su
     return LLMSuccessJudge(client)
 
 
+def build_environment(
+    case: BenchmarkCase,
+    kind: EnvironmentKind,
+    *,
+    headless: bool = True,
+    screenshot_dir: Path | None = None,
+    appium_server: str = "http://127.0.0.1:4723",
+    appium_capabilities_file: Path | None = None,
+) -> BrowserEnvironment:
+    """Construct the selected execution environment for ``case``."""
+    from .environments import (
+        APIEnvironment,
+        AppiumEnvironment,
+        PlaywrightEnvironment,
+        SeleniumEnvironment,
+    )
+
+    resolved = _resolve_environment_kind(case, kind)
+    if resolved is EnvironmentKind.API:
+        return APIEnvironment(case.task.start_url)
+    if resolved is EnvironmentKind.PLAYWRIGHT:
+        return PlaywrightEnvironment.launch(headless=headless, screenshot_dir=screenshot_dir)
+    if resolved is EnvironmentKind.SELENIUM:
+        return SeleniumEnvironment.launch(headless=headless, screenshot_dir=screenshot_dir)
+    if resolved is EnvironmentKind.APPIUM:
+        return AppiumEnvironment.launch(
+            command_executor=appium_server,
+            capabilities=_load_capabilities(appium_capabilities_file),
+            screenshot_dir=screenshot_dir,
+        )
+    raise ValueError(f"Unsupported environment kind: {resolved}")
+
+
+def _resolve_environment_kind(case: BenchmarkCase, kind: EnvironmentKind) -> EnvironmentKind:
+    """Resolve ``auto`` into a concrete environment choice."""
+    if kind is not EnvironmentKind.AUTO:
+        return kind
+    if _looks_like_api_case(case):
+        return EnvironmentKind.API
+    start_url = case.task.start_url
+    if start_url.startswith(("appium://", "appium:")):
+        return EnvironmentKind.APPIUM
+    if start_url.startswith(("http://", "https://", "file://", "about:")):
+        return EnvironmentKind.PLAYWRIGHT
+    return EnvironmentKind.API
+
+
+def _looks_like_api_case(case: BenchmarkCase) -> bool:
+    """Heuristically detect task files authored for ``APIEnvironment``."""
+    api_selectors = ("#method", "#path", "#body", "#send", "#header:", "#query:")
+    for action in case.plan:
+        selector = action.selector or ""
+        if selector == "#send":
+            return True
+        if any(selector.startswith(prefix) for prefix in api_selectors):
+            return True
+    return case.task.metadata.get("environment") == "api"
+
+
+def _load_capabilities(path: Path | None) -> dict[str, object]:
+    """Load an Appium capabilities mapping from JSON or YAML."""
+    if path is None:
+        return {}
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        data = yaml.safe_load(text)
+    elif path.suffix.lower() == ".json":
+        data = json.loads(text)
+    else:
+        raise ValueError(f"Unsupported capabilities file extension: {path.suffix}")
+    if not isinstance(data, dict):
+        raise ValueError("Appium capabilities file must contain a mapping/object.")
+    return dict(data)
+
+
 def _console_approver(action: AgentAction) -> ApprovalDecision:
     """Approver that asks the operator to confirm a risky action on the console."""
     target = action.selector or (action.x, action.y)
@@ -105,9 +193,20 @@ def benchmark(
         int,
         typer.Option("--workers", min=1, help="Number of benchmark cases to run concurrently."),
     ] = 1,
+    environment: Annotated[
+        EnvironmentKind,
+        typer.Option(help="Execution environment: auto/playwright/selenium/appium/api."),
+    ] = EnvironmentKind.AUTO,
     judge_success: Annotated[
         bool, typer.Option(help="Enable LLM judging for tasks that define success_judge.")
     ] = False,
+    appium_server: Annotated[
+        str, typer.Option(help="Appium server URL (appium environment only).")
+    ] = "http://127.0.0.1:4723",
+    appium_capabilities_file: Annotated[
+        Path | None,
+        typer.Option(help="JSON/YAML Appium capabilities file (appium environment only)."),
+    ] = None,
     headless: Annotated[bool, typer.Option(help="Run the browser headless.")] = True,
 ) -> None:
     """Run the rule-based baseline over tasks and export summary metrics.
@@ -117,7 +216,6 @@ def benchmark(
     (``playwright install chromium``).
     """
     from .agents import RuleBasedAgent, Runner
-    from .environments import PlaywrightEnvironment
     from .evaluation import (
         BenchmarkRunner,
         compute_summary,
@@ -136,9 +234,15 @@ def benchmark(
         """Create the rule-based agent for a benchmark case."""
         return RuleBasedAgent(case.plan)
 
-    def make_env(case: BenchmarkCase) -> PlaywrightEnvironment:
-        """Launch a fresh Playwright environment for a benchmark case."""
-        return PlaywrightEnvironment.launch(headless=headless)
+    def make_env(case: BenchmarkCase) -> BrowserEnvironment:
+        """Launch a fresh environment for a benchmark case."""
+        return build_environment(
+            case,
+            environment,
+            headless=headless,
+            appium_server=appium_server,
+            appium_capabilities_file=appium_capabilities_file,
+        )
 
     judge = build_success_judge(enabled=judge_success)
     results = BenchmarkRunner(runner=Runner(success_judge=judge)).run(
@@ -239,6 +343,10 @@ def run(
         bool,
         typer.Option(help="Retry element-not-found actions with nearby selector alternatives."),
     ] = False,
+    environment: Annotated[
+        EnvironmentKind,
+        typer.Option(help="Execution environment: auto/playwright/selenium/appium/api."),
+    ] = EnvironmentKind.AUTO,
     judge_success: Annotated[
         bool, typer.Option(help="Enable LLM judging for tasks that define success_judge.")
     ] = False,
@@ -251,14 +359,20 @@ def run(
     out_dir: Annotated[
         Path, typer.Option("--out-dir", help="Directory for the trace JSONL + screenshots.")
     ] = Path("artifacts/runs"),
+    appium_server: Annotated[
+        str, typer.Option(help="Appium server URL (appium environment only).")
+    ] = "http://127.0.0.1:4723",
+    appium_capabilities_file: Annotated[
+        Path | None,
+        typer.Option(help="JSON/YAML Appium capabilities file (appium environment only)."),
+    ] = None,
     headless: Annotated[bool, typer.Option(help="Run the browser headless.")] = True,
     price_in: Annotated[float, typer.Option(help="USD per 1k input tokens (llm agent).")] = 0.0,
     price_out: Annotated[float, typer.Option(help="USD per 1k output tokens (llm agent).")] = 0.0,
 ) -> None:
     """Run a single task with one agent and write its trace.
 
-    Launches a fresh Playwright browser (requires ``playwright install
-    chromium``), executes the task, prints the outcome, and stores the trace as
+    Launches a fresh environment, executes the task, prints the outcome, and stores the trace as
     ``<out_dir>/<task_id>.jsonl``. With the ``llm`` agent, token usage is metered
     and (given ``--price-in``/``--price-out``) costed.
     """
@@ -270,7 +384,6 @@ def run(
         TokenMeter,
         write_trace_jsonl,
     )
-    from .environments import PlaywrightEnvironment
     from .evaluation import load_case
 
     case = load_case(task)
@@ -291,7 +404,16 @@ def run(
     runner = Runner(stop_on_action_failure=not reflect, success_judge=judge)
 
     screenshots = out_dir / case.task.task_id / "screenshots"
-    with PlaywrightEnvironment.launch(headless=headless, screenshot_dir=screenshots) as env:
+    resolved_environment = _resolve_environment_kind(case, environment)
+    screenshot_target = screenshots if resolved_environment is not EnvironmentKind.API else None
+    with build_environment(
+        case,
+        environment,
+        headless=headless,
+        screenshot_dir=screenshot_target,
+        appium_server=appium_server,
+        appium_capabilities_file=appium_capabilities_file,
+    ) as env:
         result = runner.run(case.task, chosen, env)
     if meter is not None:
         result = result.model_copy(

@@ -166,12 +166,10 @@ class AppiumEnvironment(BrowserEnvironment):
         return "id", selector
 
     def _current_target(self) -> str:
-        try:
+        with suppress(Exception):
             current_url = str(self._driver.current_url)
             if current_url:
                 return current_url
-        except Exception:  # noqa: BLE001
-            pass
         with suppress(Exception):
             package = str(self._driver.current_package)
             activity = str(getattr(self._driver, "current_activity", ""))

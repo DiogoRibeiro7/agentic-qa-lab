@@ -25,6 +25,7 @@ agentic-qa run --task tasks/example_login.yaml
 Useful variants:
 
 - `--agent llm` to use the planner instead of the rule baseline.
+- `--environment selenium` (or `playwright`, `appium`, `api`, `auto`) to choose the backend.
 - `--mode combined` to attach both DOM-derived context and screenshots.
 - `--reflect` to enable the settle-and-retry repair loop.
 - `--self-heal` to retry `element_not_found` actions with DOM-derived selector alternatives.
@@ -35,6 +36,12 @@ Example:
 
 ```bash
 agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --reflect
+```
+
+Selenium example:
+
+```bash
+agentic-qa run --task tasks/example_login.yaml --environment selenium
 ```
 
 ## Record a task
@@ -114,6 +121,12 @@ For mobile or native-app automation, use `AppiumEnvironment` from
   `xpath=//android.widget.TextView[@text="Battery"]`.
 - `AppiumEnvironment.launch(...)` expects an Appium server plus desired
   capabilities for the target device/session.
+
+CLI example:
+
+```bash
+agentic-qa run --task tasks/mobile/login.yaml --environment appium --appium-capabilities-file capabilities/android.yaml
+```
 
 ## Run a benchmark
 

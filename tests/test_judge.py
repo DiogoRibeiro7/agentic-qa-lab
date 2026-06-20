@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from agentic_qa_lab.agents import JudgeVerdict, LLMMessage, LLMSuccessJudge
 from agentic_qa_lab.domain import Observation, TaskSpec
 
@@ -69,3 +71,18 @@ def test_llm_success_judge_parses_plain_json_fence() -> None:
     verdict = judge.evaluate(_task(), _obs(), [])
 
     assert verdict == JudgeVerdict(success=False, reason="No confirmation shown.")
+
+
+def test_llm_success_judge_parses_plain_json_without_fence() -> None:
+    judge = LLMSuccessJudge(PlainJudgeLLM('{"success": true, "reason": "Done."}'))
+
+    verdict = judge.evaluate(_task(), _obs(), [])
+
+    assert verdict == JudgeVerdict(success=True, reason="Done.")
+
+
+def test_llm_success_judge_rejects_non_object_json() -> None:
+    judge = LLMSuccessJudge(PlainJudgeLLM('["not", "an", "object"]'))
+
+    with pytest.raises(ValueError, match="JSON object"):
+        judge.evaluate(_task(), _obs(), [])

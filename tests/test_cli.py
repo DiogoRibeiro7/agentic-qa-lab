@@ -9,9 +9,17 @@ from typer.testing import CliRunner
 
 from agentic_qa_lab import cli
 from agentic_qa_lab.agents import LLMPlannerAgent, ObservationMode, RuleBasedAgent
-from agentic_qa_lab.cli import AgentKind, app, build_agent
+from agentic_qa_lab.cli import (
+    AgentKind,
+    EnvironmentKind,
+    _load_capabilities,
+    _resolve_environment_kind,
+    app,
+    build_agent,
+    build_environment,
+)
 from agentic_qa_lab.domain import ActionResult, AgentAction, Observation, TaskSpec
-from agentic_qa_lab.environments import BrowserEnvironment, PlaywrightEnvironment
+from agentic_qa_lab.environments import APIEnvironment, BrowserEnvironment, PlaywrightEnvironment
 from agentic_qa_lab.evaluation import BenchmarkCase
 
 runner = CliRunner()
@@ -90,6 +98,24 @@ def _patch_launch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(PlaywrightEnvironment, "launch", staticmethod(fake_launch))
 
 
+def _patch_environment_builder(
+    monkeypatch: pytest.MonkeyPatch, seen: list[EnvironmentKind]
+) -> None:
+    def fake_build_environment(
+        case: BenchmarkCase,
+        kind: EnvironmentKind,
+        *,
+        headless: bool = True,
+        screenshot_dir: Path | None = None,
+        appium_server: str = "http://127.0.0.1:4723",
+        appium_capabilities_file: Path | None = None,
+    ) -> FakeEnv:
+        seen.append(kind)
+        return FakeEnv()
+
+    monkeypatch.setattr(cli, "build_environment", fake_build_environment)
+
+
 def test_run_command_writes_trace(
     monkeypatch: pytest.MonkeyPatch, task_file: Path, tmp_path: Path
 ) -> None:
@@ -105,6 +131,89 @@ def test_run_command_writes_trace(
     records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
     assert records[-1]["record"] == "summary"
     assert records[-1]["status"] == "success"
+
+
+def test_build_environment_auto_detects_api_case() -> None:
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="api", goal="g", start_url="https://api.example.com/"),
+        plan=[
+            AgentAction.type_text("GET", selector="#method"),
+            AgentAction.type_text("/health", selector="#path"),
+            AgentAction.click("#send"),
+        ],
+    )
+
+    env = build_environment(case, EnvironmentKind.AUTO)
+
+    assert isinstance(env, APIEnvironment)
+    env.close()
+
+
+def test_resolve_environment_auto_detects_appium_case() -> None:
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="mobile", goal="g", start_url="appium://session"),
+        plan=[],
+    )
+
+    assert _resolve_environment_kind(case, EnvironmentKind.AUTO) is EnvironmentKind.APPIUM
+
+
+def test_load_capabilities_yaml(tmp_path: Path) -> None:
+    path = tmp_path / "caps.yaml"
+    path.write_text("platformName: Android\n", encoding="utf-8")
+
+    caps = _load_capabilities(path)
+
+    assert caps["platformName"] == "Android"
+
+
+def test_load_capabilities_rejects_bad_extension(tmp_path: Path) -> None:
+    path = tmp_path / "caps.txt"
+    path.write_text("nope", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported capabilities"):
+        _load_capabilities(path)
+
+
+def test_build_environment_uses_appium_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_launch(
+        *,
+        command_executor: str,
+        capabilities: dict[str, object] | None = None,
+        screenshot_dir: Path | None = None,
+        default_timeout_ms: int = 10_000,
+        viewport: tuple[int, int] | None = None,
+    ) -> FakeEnv:
+        seen["server"] = command_executor
+        seen["capabilities"] = capabilities
+        seen["screenshot_dir"] = screenshot_dir
+        return FakeEnv()
+
+    path = tmp_path / "caps.json"
+    path.write_text('{"platformName":"Android"}', encoding="utf-8")
+    monkeypatch.setattr(
+        "agentic_qa_lab.environments.AppiumEnvironment.launch", staticmethod(fake_launch)
+    )
+    case = BenchmarkCase(
+        task=TaskSpec(task_id="mobile", goal="g", start_url="appium://session"),
+        plan=[],
+    )
+
+    env = build_environment(
+        case,
+        EnvironmentKind.APPIUM,
+        screenshot_dir=tmp_path / "shots",
+        appium_server="http://127.0.0.1:4725",
+        appium_capabilities_file=path,
+    )
+
+    assert isinstance(env, FakeEnv)
+    assert seen["server"] == "http://127.0.0.1:4725"
+    assert seen["capabilities"] == {"platformName": "Android"}
 
 
 def test_run_command_exits_nonzero_on_failure(
@@ -125,6 +234,29 @@ def test_run_command_exits_nonzero_on_failure(
 
     result = runner.invoke(app, ["run", "--task", str(path), "--out-dir", str(tmp_path / "o")])
     assert result.exit_code == 1
+
+
+def test_run_command_uses_requested_environment(
+    monkeypatch: pytest.MonkeyPatch, task_file: Path, tmp_path: Path
+) -> None:
+    seen: list[EnvironmentKind] = []
+    _patch_environment_builder(monkeypatch, seen)
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--task",
+            str(task_file),
+            "--environment",
+            "selenium",
+            "--out-dir",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == [EnvironmentKind.SELENIUM]
 
 
 def test_run_command_can_enable_success_judge(
@@ -239,6 +371,38 @@ def test_run_help_lists_command() -> None:
     assert "run" in result.output
     assert "benchmark" in result.output
     assert "record" in result.output
+
+
+def test_benchmark_command_uses_requested_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "task_id: bench-demo\n"
+        "goal: finish quickly\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - {type: finish, reason: done}\n",
+        encoding="utf-8",
+    )
+    seen: list[EnvironmentKind] = []
+    _patch_environment_builder(monkeypatch, seen)
+
+    result = runner.invoke(
+        app,
+        [
+            "benchmark",
+            "--tasks",
+            str(task_path),
+            "--environment",
+            "selenium",
+            "--out-dir",
+            str(tmp_path / "bench"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == [EnvironmentKind.SELENIUM]
 
 
 def test_record_command_writes_task_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

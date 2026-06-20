@@ -238,6 +238,9 @@ agentic-qa run --task tasks/example_login.yaml --agent llm --mode combined --ref
 # One task with selector self-healing enabled
 agentic-qa run --task tasks/example_login.yaml --self-heal
 
+# One task against Selenium instead of Playwright
+agentic-qa run --task tasks/example_login.yaml --environment selenium
+
 # One task with semantic success judging enabled
 agentic-qa run --task tasks/example_login.yaml --judge-success
 
@@ -252,6 +255,9 @@ agentic-qa benchmark --tasks "tasks/real/*.yaml" --workers 2
 
 # Benchmark with semantic success judging enabled for tasks that define it
 agentic-qa benchmark --tasks "tasks/*.yaml" --judge-success
+
+# Run API-authored tasks with the HTTP environment
+agentic-qa benchmark --tasks "tasks/api/*.yaml" --environment api
 ```
 
 `run` exits non-zero when the task does not succeed, so it composes in scripts
@@ -260,6 +266,9 @@ channel; `--reflect` wraps the agent in the repair loop (and lets failed actions
 stay in the trace for recovery); `--self-heal` retries repeated
 `element_not_found` actions with DOM-derived selector alternatives; and
 `--judge-success` enables the optional model-graded `success_judge` task rubric.
+`--environment` selects `playwright`, `selenium`, `appium`, `api`, or `auto`
+(`auto` infers Appium from `appium://...` tasks and API mode from API-authored
+plans such as `#method` / `#send`).
 
 `record` launches a browser for manual interaction, captures clicks, field
 edits, and key presses, then writes a standard task file containing the

@@ -7,11 +7,11 @@ from agentic_qa_lab.domain import AgentAction, FailureCategory, TaskSpec
 from agentic_qa_lab.environments import AppiumEnvironment
 
 
-class FakeTimeoutException(Exception):
+class FakeTimeoutError(Exception):
     """Stand-in mimicking Appium TimeoutException by class name."""
 
 
-FakeTimeoutException.__name__ = "TimeoutException"
+FakeTimeoutError.__name__ = "TimeoutException"
 
 
 class FakeElement:
@@ -133,7 +133,7 @@ def test_coordinate_click_uses_tap() -> None:
 
 
 def test_timeout_is_categorized() -> None:
-    driver = FakeDriver(exc=FakeTimeoutException("timed out"))
+    driver = FakeDriver(exc=FakeTimeoutError("timed out"))
     env = AppiumEnvironment(driver)
 
     result = env.execute(AgentAction.click("id=missing"))
