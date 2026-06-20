@@ -175,6 +175,63 @@ def test_load_case_raises_on_missing_env_text_ref(tmp_path: Path) -> None:
         load_case(path)
 
 
+def test_load_case_resolves_nested_env_refs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGENTIC_QA_TEST_TOKEN", "token-123")
+    path = tmp_path / "api.yaml"
+    path.write_text(
+        "task_id: api\n"
+        "goal: call api\n"
+        "start_url: https://api.example.com/\n"
+        "plan:\n"
+        "  - type: type_text\n"
+        "    selector: '#header:authorization'\n"
+        "    text: {env: AGENTIC_QA_TEST_TOKEN}\n"
+        "  - type: click\n"
+        "    selector: '#send'\n",
+        encoding="utf-8",
+    )
+
+    case = load_case(path)
+
+    assert case.plan[0].text == "token-123"
+    assert case.plan[1].selector == "#send"
+
+
+def test_load_case_rejects_invalid_env_ref_name(tmp_path: Path) -> None:
+    path = tmp_path / "secret.yaml"
+    path.write_text(
+        "task_id: s\n"
+        "goal: log in\n"
+        "start_url: https://e.com/\n"
+        "plan:\n"
+        "  - type: type_text\n"
+        "    selector: '#password'\n"
+        "    text: {env: ''}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="non-empty environment variable name"):
+        load_case(path)
+
+
+def test_load_case_rejects_non_mapping_top_level(tmp_path: Path) -> None:
+    path = tmp_path / "bad.yaml"
+    path.write_text("- just\n- a\n- list\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must contain a mapping"):
+        load_case(path)
+
+
+def test_load_case_rejects_unsupported_extension(tmp_path: Path) -> None:
+    path = tmp_path / "bad.txt"
+    path.write_text("task_id: nope\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported task file extension"):
+        load_case(path)
+
+
 def test_load_cases_sorted_and_deduped(tmp_path: Path) -> None:
     (tmp_path / "z.yaml").write_text(
         "task_id: z\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8"
@@ -184,6 +241,25 @@ def test_load_cases_sorted_and_deduped(tmp_path: Path) -> None:
     )
     cases = load_cases([str(tmp_path / "*.yaml")])
     assert [c.task.task_id for c in cases] == ["a", "z"]
+
+
+def test_load_cases_accepts_explicit_file_paths(tmp_path: Path) -> None:
+    path = tmp_path / "single.yaml"
+    path.write_text("task_id: one\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8")
+
+    cases = load_cases([str(path)])
+
+    assert [c.task.task_id for c in cases] == ["one"]
+
+
+def test_load_cases_skips_missing_patterns(tmp_path: Path) -> None:
+    (tmp_path / "a.yaml").write_text(
+        "task_id: a\ngoal: g\nstart_url: https://e.com/\n", encoding="utf-8"
+    )
+
+    cases = load_cases([str(tmp_path / "*.yaml"), str(tmp_path / "missing/*.yaml")])
+
+    assert [c.task.task_id for c in cases] == ["a"]
 
 
 def test_bundled_example_tasks_load(monkeypatch: pytest.MonkeyPatch) -> None:
