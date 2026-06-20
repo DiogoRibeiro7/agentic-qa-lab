@@ -12,7 +12,7 @@ def _load_dashboard_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("dashboard_app", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault("streamlit", types.SimpleNamespace())
+    sys.modules.setdefault("streamlit", types.ModuleType("streamlit"))
     spec.loader.exec_module(module)
     return module
 

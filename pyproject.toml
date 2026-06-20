@@ -3,7 +3,12 @@
     version = "0.1.0"
     description = "Autonomous UI and game testing agents."
     authors = ["Diogo Ribeiro <hansolo.dj@gmail.com>"]
+    license = "MIT"
     readme = "README.md"
+    homepage = "https://github.com/DiogoRibeiro7/agentic-qa-lab"
+    repository = "https://github.com/DiogoRibeiro7/agentic-qa-lab"
+    documentation = "https://DiogoRibeiro7.github.io/agentic-qa-lab/"
+    keywords = ["agents", "llm", "browser-automation", "playwright", "qa", "evaluation"]
     packages = [{ include = "agentic_qa_lab", from = "src" }]
 
     [tool.poetry.scripts]

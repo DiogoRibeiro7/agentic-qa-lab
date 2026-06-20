@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "agentic-qa-lab"
+abstract: >-
+  Autonomous UI and game-testing agent using vision-language reasoning, browser
+  control, action planning, failure recovery, and evaluation.
+type: software
+authors:
+  - family-names: Ribeiro
+    given-names: Diogo
+    email: hansolo.dj@gmail.com
+repository-code: "https://github.com/DiogoRibeiro7/agentic-qa-lab"
+url: "https://DiogoRibeiro7.github.io/agentic-qa-lab/"
+license: MIT
+version: 0.1.0
+keywords:
+  - agents
+  - llm
+  - browser-automation
+  - playwright
+  - qa
+  - evaluation

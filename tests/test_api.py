@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -57,7 +58,7 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
 def _await_execution(client: TestClient, execution_id: str) -> dict[str, object]:
     deadline = time.time() + 2.0
     while time.time() < deadline:
-        payload = client.get(f"/executions/{execution_id}").json()
+        payload: dict[str, object] = client.get(f"/executions/{execution_id}").json()
         if payload["status"] in {"completed", "failed"}:
             return payload
         time.sleep(0.02)
@@ -361,9 +362,7 @@ def test_default_run_factory_llm_path_applies_reflection_and_metering(
 
     seen: dict[str, object] = {}
 
-    def fake_build_agent(
-        case: object, kind: object, mode: object, *, meter: object = None
-    ) -> object:
+    def fake_build_agent(case: object, kind: object, mode: object, *, meter: Any = None) -> object:
         assert meter is not None
         meter.record(11, 7)
         return "agent"

@@ -90,6 +90,7 @@ class StructuredEchoLLM:
     def __init__(self, reply: dict[str, Any]) -> None:
         self._reply = reply
         self.calls = 0
+        self.last_usage: Usage | None = None
 
     def complete(self, messages: list[LLMMessage]) -> str:
         raise AssertionError("plain completion should not be used")
@@ -228,6 +229,18 @@ def test_summary_includes_latency_and_cost() -> None:
     assert summary.mean_observation_latency_ms == 9.0
     assert summary.total_tokens == 150
     assert summary.total_cost_usd == 0.75
+
+
+def test_p95_uses_deterministic_nearest_rank() -> None:
+    from agentic_qa_lab.evaluation.metrics import _percentile
+
+    # 20 distinct values: ceil(0.95 * 20) = 19 -> the 19th element (value 19),
+    # i.e. the second-highest, not the max. This guards against the prior
+    # banker's-rounding implementation that collapsed onto the maximum.
+    values = [float(i) for i in range(1, 21)]
+    assert _percentile(values, 95) == 19.0
+    assert _percentile([5.0], 95) == 5.0
+    assert _percentile([], 95) == 0.0
 
 
 def test_summary_latency_zero_without_steps() -> None:

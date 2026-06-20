@@ -41,7 +41,9 @@ def _serve() -> tuple[HTTPServer, str]:
     server = HTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    host, port = server.server_address
+    host, port = server.server_address[0], server.server_address[1]
+    if isinstance(host, bytes | bytearray):
+        host = host.decode()
     return server, f"http://{host}:{port}"
 
 

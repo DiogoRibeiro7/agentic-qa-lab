@@ -127,6 +127,7 @@ class AppiumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.TYPE_TEXT:
+            assert action.selector is not None  # noqa: S101 - guaranteed by AgentAction validator
             element = self._find(action.selector)
             with suppress(Exception):
                 element.clear()
@@ -134,11 +135,13 @@ class AppiumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.PRESS_KEY:
+            assert action.selector is not None  # noqa: S101 - guaranteed by AgentAction validator
             element = self._find(action.selector)
             element.send_keys(action.key)
             return
 
         if action.type is ActionType.WAIT:
+            assert action.duration_ms is not None  # noqa: S101 - validator guarantees positive
             time.sleep(action.duration_ms / 1000.0)
             return
 

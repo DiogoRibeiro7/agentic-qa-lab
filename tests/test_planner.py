@@ -37,6 +37,9 @@ class StructuredFakeLLM:
         self.prompts: list[list[LLMMessage]] = []
         self.schemas: list[dict[str, Any]] = []
 
+    def complete(self, messages: list[LLMMessage]) -> str:
+        raise NotImplementedError("structured stub only supports complete_json")
+
     def complete_json(
         self,
         messages: list[LLMMessage],

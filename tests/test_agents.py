@@ -24,10 +24,15 @@ class FakeEnv(BrowserEnvironment):
     """
 
     def __init__(
-        self, *, dom: str = "<html></html>", fail_selectors: set[str] | None = None
+        self,
+        *,
+        dom: str = "<html></html>",
+        fail_selectors: set[str] | None = None,
+        fail_category: FailureCategory = FailureCategory.ELEMENT_NOT_FOUND,
     ) -> None:
         self._dom = dom
         self._fail = fail_selectors or set()
+        self._fail_category = fail_category
         self._step = 0
         self.executed: list[AgentAction] = []
         self.closed = False
@@ -50,7 +55,7 @@ class FakeEnv(BrowserEnvironment):
     def execute(self, action: AgentAction) -> ActionResult:
         self.executed.append(action)
         if action.selector is not None and action.selector in self._fail:
-            return ActionResult.failed("boom", category=FailureCategory.ELEMENT_NOT_FOUND)
+            return ActionResult.failed("boom", category=self._fail_category)
         return ActionResult.ok()
 
     def close(self) -> None:
@@ -124,6 +129,7 @@ def test_runner_success_requires_selector_when_set() -> None:
     run = Runner().run(_task(success_selector="Welcome"), RuleBasedAgent(plan), env)
 
     assert run.status is RunStatus.FAILURE
+    assert run.failure_category is FailureCategory.SUCCESS_UNCONFIRMED
 
 
 def test_runner_success_with_selector_present() -> None:
@@ -173,6 +179,26 @@ def test_runner_retries_then_fails() -> None:
     # 1 initial attempt + 2 retries = 3 executions of the failing action.
     assert len(env.executed) == 3
     assert run.total_retries == 2
+
+
+def test_runner_does_not_retry_invalid_action() -> None:
+    plan = [AgentAction.click("#bad")]
+    env = FakeEnv(fail_selectors={"#bad"}, fail_category=FailureCategory.INVALID_ACTION)
+    run = Runner().run(_task(max_retries=3), RuleBasedAgent(plan), env)
+
+    assert run.status is RunStatus.FAILURE
+    assert run.failure_category is FailureCategory.INVALID_ACTION
+    # A structurally invalid action is permanent: one attempt, no retries.
+    assert len(env.executed) == 1
+    assert run.total_retries == 0
+
+
+def test_runner_fail_action_is_agent_failed() -> None:
+    run = Runner().run(_task(), RuleBasedAgent([AgentAction.fail("giving up")]), env := FakeEnv())
+
+    assert run.status is RunStatus.FAILURE
+    assert run.failure_category is FailureCategory.AGENT_FAILED
+    assert env.closed is False
 
 
 def test_runner_hits_max_steps() -> None:

@@ -132,6 +132,7 @@ class SeleniumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.TYPE_TEXT:
+            assert action.selector is not None  # noqa: S101 - guaranteed by AgentAction validator
             element = self._find(action.selector)
             with suppress(Exception):
                 element.clear()
@@ -139,6 +140,7 @@ class SeleniumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.PRESS_KEY:
+            assert action.key is not None  # noqa: S101 - guaranteed by AgentAction validator
             target = (
                 self._find(action.selector)
                 if action.selector is not None
@@ -148,6 +150,7 @@ class SeleniumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.WAIT:
+            assert action.duration_ms is not None  # noqa: S101 - validator guarantees positive
             time.sleep(action.duration_ms / 1000.0)
             return
 

@@ -28,6 +28,11 @@ from ..environments import BrowserEnvironment
 from .base import Agent
 from .judge import JudgeVerdict, SuccessJudge
 
+#: Failure categories that will recur identically on retry, so retrying wastes
+#: the budget. Element/timeout/navigation failures are excluded because they are
+#: often transient.
+_NON_RETRYABLE: frozenset[FailureCategory] = frozenset({FailureCategory.INVALID_ACTION})
+
 
 class Runner:
     """Execute the observe → decide → act loop for one task.
@@ -119,10 +124,20 @@ class Runner:
         action: AgentAction,
         max_retries: int,
     ) -> tuple[ActionResult, int]:
-        """Execute ``action``, retrying transient failures up to ``max_retries``."""
+        """Execute ``action``, retrying transient failures up to ``max_retries``.
+
+        A structurally invalid action will fail identically on every attempt, so
+        ``INVALID_ACTION`` is treated as permanent and not retried; element,
+        timeout, and navigation failures are retried because they are often
+        transient (slow render, flaky network).
+        """
         result = env.execute(action)
         retries = 0
-        while not result.success and retries < max_retries:
+        while (
+            not result.success
+            and result.failure_category not in _NON_RETRYABLE
+            and retries < max_retries
+        ):
             retries += 1
             result = env.execute(action)
         # Surface the accumulated retry count on the returned result.
@@ -142,7 +157,7 @@ class Runner:
         in :meth:`run` so it can honour ``stop_on_action_failure``.
         """
         if action.type is ActionType.FAIL:
-            return action, (RunStatus.FAILURE, FailureCategory.UNKNOWN)
+            return action, (RunStatus.FAILURE, FailureCategory.AGENT_FAILED)
 
         if action.type is ActionType.FINISH:
             if task.success_selector is None:
@@ -161,7 +176,7 @@ class Runner:
                 if verdict.success:
                     return action, (RunStatus.SUCCESS, FailureCategory.NONE)
                 return action, (RunStatus.FAILURE, FailureCategory.JUDGE_REJECTED)
-            return action, (RunStatus.FAILURE, FailureCategory.UNKNOWN)
+            return action, (RunStatus.FAILURE, FailureCategory.SUCCESS_UNCONFIRMED)
 
         return action, None
 

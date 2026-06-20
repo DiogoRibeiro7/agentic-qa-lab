@@ -34,7 +34,7 @@ def test_llm_settings_read_dotenv_file(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    settings = LLMSettings(_env_file=env_file)
+    settings = LLMSettings(_env_file=env_file)  # type: ignore[call-arg]
 
     assert settings.api_key == "sk-test"
     assert settings.base_url == "https://example.com/v1"

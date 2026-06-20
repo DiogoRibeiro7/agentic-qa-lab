@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from statistics import mean, median
 
@@ -98,14 +99,16 @@ def compute_summary(results: list[RunResult]) -> BenchmarkSummary:
 
 
 def _percentile(values: list[float], pct: float) -> float:
-    """Return the ``pct`` percentile of ``values`` using nearest-rank.
+    """Return the ``pct`` percentile of ``values`` using the nearest-rank method.
 
-    For example, the 95th percentile of a list is the element at rank
-    ``round(0.95 * n)`` when the values are sorted. Returns 0.0 for empty
+    The rank is ``ceil(pct/100 * n)`` (the textbook nearest-rank definition),
+    so the result is deterministic and never depends on banker's rounding the
+    way ``round`` does at ``.5`` boundaries. For example, the 95th percentile of
+    a sorted list is ``ordered[ceil(0.95 * n) - 1]``. Returns 0.0 for empty
     inputs to keep summary computation safe.
     """
     if not values:
         return 0.0
     ordered = sorted(values)
-    rank = max(1, round(pct / 100 * len(ordered)))
+    rank = max(1, math.ceil(pct / 100 * len(ordered)))
     return float(ordered[min(rank, len(ordered)) - 1])

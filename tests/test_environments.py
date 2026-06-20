@@ -218,6 +218,17 @@ def test_element_not_found_is_categorized() -> None:
     assert result.failure_category is FailureCategory.ELEMENT_NOT_FOUND
 
 
+def test_strict_mode_violation_is_not_element_not_found() -> None:
+    # An ambiguous selector that matched several nodes is not a missing element;
+    # it must not be bucketed as ELEMENT_NOT_FOUND (which would trigger healing).
+    assert (
+        PlaywrightEnvironment._categorize(  # noqa: SLF001
+            RuntimeError("strict mode violation: locator resolved to 3 elements")
+        )
+        is FailureCategory.INVALID_ACTION
+    )
+
+
 def test_navigation_error_is_categorized() -> None:
     assert (
         PlaywrightEnvironment._categorize(  # noqa: SLF001

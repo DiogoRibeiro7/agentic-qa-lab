@@ -299,7 +299,7 @@ def test_observe_falls_back_to_page_source_for_visible_text() -> None:
     def fail_mobile_source(script: str, payload: dict[str, str]) -> str:
         raise RuntimeError("no mobile source")
 
-    driver.execute_script = fail_mobile_source  # type: ignore[assignment]
+    driver.execute_script = fail_mobile_source  # type: ignore[method-assign]
     env = AppiumEnvironment(driver)
 
     obs = env.observe()

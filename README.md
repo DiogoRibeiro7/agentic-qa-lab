@@ -343,8 +343,10 @@ streamlit run apps/dashboard/app.py                  # dashboard on :8501
 docker compose up --build                            # api :8000, dashboard :8501
 ```
 
-Dashboard screenshots live in [docs/](docs/) once you have run the stack and
-captured them (`docs/dashboard_comparison.png`, `docs/dashboard_trace.png`).
+The dashboard is best seen live (`docker compose up`). If you want static
+screenshots in the docs, run the stack and capture them to
+`docs/dashboard_comparison.png` and `docs/dashboard_trace.png`; they are not
+bundled in the repo.
 
 Published docs are built with MkDocs Material and served from GitHub Pages at
 `https://DiogoRibeiro7.github.io/agentic-qa-lab/`.
@@ -593,4 +595,15 @@ Pull requests and issues should use the repository templates in .github to keep 
 
 ## Roadmap
 
-Planned milestones are tracked in ROADMAP.md.
+Planned milestones are tracked in ROADMAP.md. Released changes are recorded in
+[CHANGELOG.md](CHANGELOG.md).
+
+## Security
+
+Found a vulnerability? Please follow [SECURITY.md](SECURITY.md) and report it
+privately rather than opening a public issue.
+
+## License
+
+Released under the [MIT License](LICENSE). If you use this project in your own
+work, citation metadata is provided in [CITATION.cff](CITATION.cff).

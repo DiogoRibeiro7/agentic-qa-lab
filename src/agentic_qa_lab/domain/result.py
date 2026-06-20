@@ -30,8 +30,13 @@ class FailureCategory(StrEnum):
     NAVIGATION_ERROR = "navigation_error"
     INVALID_ACTION = "invalid_action"
     MAX_STEPS_EXCEEDED = "max_steps_exceeded"
+    #: The agent crashed with an unhandled exception during planning.
     AGENT_ERROR = "agent_error"
+    #: The agent deliberately gave up by emitting a terminal ``fail`` action.
+    AGENT_FAILED = "agent_failed"
     JUDGE_REJECTED = "judge_rejected"
+    #: The agent claimed ``finish`` but the task's success criterion was unmet.
+    SUCCESS_UNCONFIRMED = "success_unconfirmed"
     UNKNOWN = "unknown"
 
 

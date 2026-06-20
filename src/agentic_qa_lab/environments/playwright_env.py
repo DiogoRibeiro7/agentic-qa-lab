@@ -211,7 +211,12 @@ class PlaywrightEnvironment(BrowserEnvironment):
             return FailureCategory.TIMEOUT
         name = type(exc).__name__
         message = str(exc).lower()
-        if "selector" in message or "no node found" in message or name == "ElementNotFound":
+        # A strict-mode violation ("resolved to N elements") is an ambiguous
+        # selector, not a missing element — keep it out of ELEMENT_NOT_FOUND so
+        # SelfHealingAgent doesn't try to repair a selector that did match.
+        if "strict mode violation" in message or "resolved to" in message:
+            return FailureCategory.INVALID_ACTION
+        if "no node found" in message or "not found" in message or name == "ElementNotFound":
             return FailureCategory.ELEMENT_NOT_FOUND
         if "navigation" in message or "net::" in message:
             return FailureCategory.NAVIGATION_ERROR

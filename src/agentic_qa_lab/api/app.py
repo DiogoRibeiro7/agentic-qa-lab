@@ -6,10 +6,13 @@ lightweight background worker used by the dashboard.
 
 Endpoints
 ---------
-``GET  /health``            liveness probe
-``POST /runs``              store a RunResult, returns its ``run_id``
-``GET  /runs``              list run summaries
-``GET  /runs/{run_id}``     full RunResult
+``GET  /health``              liveness probe
+``POST /runs/execute``        queue a task file for execution
+``GET  /executions``          list queued/completed executions
+``GET  /executions/{id}``     execution status/details
+``POST /runs``                store a RunResult, returns its ``run_id``
+``GET  /runs``                list run summaries
+``GET  /runs/{run_id}``       full RunResult
 ``GET  /runs/{run_id}/trace`` trace steps for a run
 """
 

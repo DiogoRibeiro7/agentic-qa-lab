@@ -1,0 +1,17 @@
+task_id: httpbin-get
+goal: Issue a GET request to httpbin and confirm a 200 OK response.
+start_url: https://httpbin.org
+success_selector: '"status": 200'
+max_steps: 6
+max_retries: 1
+timeout_seconds: 30
+metadata:
+  environment: api
+  category: api
+  difficulty: easy
+plan:
+  - {type: type_text, selector: "#method", text: GET}
+  - {type: type_text, selector: "#path", text: /get}
+  - {type: type_text, selector: "#query:hello", text: world}
+  - {type: click, selector: "#send"}
+  - {type: finish, reason: Received the httpbin GET response.}

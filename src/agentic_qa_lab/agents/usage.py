@@ -10,6 +10,7 @@ the planner transparently.
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from .llm import LLMClient, LLMMessage, StructuredLLMClient, Usage
@@ -47,12 +48,17 @@ class TokenMeter:
         self.calls = 0
         self.input_tokens = 0
         self.output_tokens = 0
+        # A single meter is shared across benchmark workers when running with
+        # ``--workers > 1``; guard the read-modify-write so increments are not
+        # lost to a data race.
+        self._lock = threading.Lock()
 
     def record(self, input_tokens: int, output_tokens: int) -> None:
-        """Add one call's input/output token counts."""
-        self.calls += 1
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
+        """Add one call's input/output token counts. Thread-safe."""
+        with self._lock:
+            self.calls += 1
+            self.input_tokens += input_tokens
+            self.output_tokens += output_tokens
 
     @property
     def total_tokens(self) -> int:

@@ -177,6 +177,9 @@ def _event_to_action(event: Mapping[str, Any]) -> AgentAction | None:
         return AgentAction.click(selector) if selector else None
     if kind == "type_text":
         text = _string_value(event.get("text"))
+        # An empty value (the user cleared the field) cannot be represented:
+        # ``type_text`` requires non-empty text and the domain has no "clear"
+        # action, so the interaction is intentionally skipped during replay.
         return AgentAction.type_text(text, selector=selector) if selector and text else None
     if kind == "press_key":
         key = _string_value(event.get("key"))

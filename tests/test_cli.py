@@ -8,7 +8,13 @@ import pytest
 from typer.testing import CliRunner
 
 from agentic_qa_lab import cli
-from agentic_qa_lab.agents import LLMPlannerAgent, ObservationMode, RuleBasedAgent
+from agentic_qa_lab.agents import (
+    LLMPlannerAgent,
+    LLMSuccessJudge,
+    ObservationMode,
+    RuleBasedAgent,
+    TokenMeter,
+)
 from agentic_qa_lab.cli import (
     AgentKind,
     EnvironmentKind,
@@ -79,11 +85,7 @@ def test_build_llm_agent(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_build_llm_agent_wraps_metered_client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
 
-    class FakeMeter:
-        total_tokens = 0
-        cost_usd = 0.0
-
-    agent = build_agent(_case(), AgentKind.LLM, ObservationMode.COMBINED, meter=FakeMeter())
+    agent = build_agent(_case(), AgentKind.LLM, ObservationMode.COMBINED, meter=TokenMeter())
 
     assert isinstance(agent, LLMPlannerAgent)
     assert type(agent._client).__name__ == "MeteredClient"  # noqa: SLF001
@@ -96,13 +98,9 @@ def test_build_success_judge_returns_none_when_disabled() -> None:
 def test_build_success_judge_wraps_metered_client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
 
-    class FakeMeter:
-        total_tokens = 0
-        cost_usd = 0.0
+    judge = build_success_judge(enabled=True, meter=TokenMeter())
 
-    judge = build_success_judge(enabled=True, meter=FakeMeter())
-
-    assert judge is not None
+    assert isinstance(judge, LLMSuccessJudge)
     assert type(judge._client).__name__ == "MeteredClient"  # noqa: SLF001
 
 

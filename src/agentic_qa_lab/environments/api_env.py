@@ -80,6 +80,7 @@ class APIEnvironment(BrowserEnvironment):
             if action.type is ActionType.CLICK and action.selector == "#send":
                 return self._send(duration_start=start)
             if action.type is ActionType.WAIT:
+                assert action.duration_ms is not None  # noqa: S101 - validator guarantees positive
                 time.sleep(action.duration_ms / 1000.0)
                 return ActionResult.ok(duration_ms=self._elapsed_ms(start))
             return ActionResult.failed(
