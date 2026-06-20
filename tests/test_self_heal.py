@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 from agentic_qa_lab.agents import Runner, SelfHealingAgent
+from agentic_qa_lab.agents.self_heal import (
+    _attr,
+    _candidate_selectors,
+    _role_selector,
+    _same_shape,
+    _selector_terms,
+    _text_selector,
+)
 from agentic_qa_lab.domain import (
     ActionResult,
     ActionType,
@@ -97,6 +105,62 @@ def test_heals_repeated_missing_selector_from_dom() -> None:
     assert "self-healed" in (healed.reason or "")
 
 
+def test_same_shape_ignores_selector_only() -> None:
+    assert _same_shape(
+        AgentAction.click("#a"),
+        AgentAction.click("#b"),
+    )
+    assert not _same_shape(
+        AgentAction.type_text("alice", selector="#a"),
+        AgentAction.type_text("bob", selector="#b"),
+    )
+
+
+def test_selector_terms_filters_noise() -> None:
+    terms = _selector_terms('css=#submit-button text="Save" role=button')
+
+    assert "submit-button" in terms
+    assert "save" in terms
+    assert "css" not in terms
+    assert "role" not in terms
+
+
+def test_attr_text_and_role_helpers() -> None:
+    attrs = 'id="submit" aria-label="Save now"'
+
+    assert _attr(attrs, "id") == "submit"
+    assert _attr(attrs, "missing") is None
+    assert _text_selector(" Save\n now ") == "text=Save now"
+    assert _text_selector("   ") is None
+    assert _role_selector("button", " Save\n now ") == 'role=button[name="Save now"]'
+    assert _role_selector("div", "Save") is None
+
+
+def test_candidate_selectors_rank_interactive_matches() -> None:
+    dom = """
+    <div>Ignore me</div>
+    <button id="submit" data-testid="submit-btn">Submit order</button>
+    <input name="username" placeholder="User name" />
+    """
+
+    candidates = _candidate_selectors(dom, AgentAction.click("#missing-submit"))
+
+    assert "#submit" in candidates
+    assert '[data-testid="submit-btn"]' in candidates
+    assert "text=Submit order" in candidates
+
+
+def test_candidate_selectors_return_empty_without_dom_or_selector() -> None:
+    assert _candidate_selectors("", AgentAction.click("#missing")) == []
+    assert (
+        _candidate_selectors(
+            "<button id='submit'>Submit</button>",
+            AgentAction.finish("done"),
+        )
+        == []
+    )
+
+
 def test_skips_candidates_that_already_failed() -> None:
     original = AgentAction.click("#missing")
     trace = [
@@ -115,6 +179,81 @@ def test_skips_candidates_that_already_failed() -> None:
     healed = SelfHealingAgent(StubAgent(original)).next_action(_task(), _obs(), trace)
 
     assert healed.selector != "#submit"
+
+
+def test_returns_proposed_when_no_recent_element_not_found() -> None:
+    original = AgentAction.click("#missing")
+    trace = [
+        TraceStep(
+            index=0,
+            observation=_obs(),
+            action=original,
+            result=ActionResult.failed("boom", category=FailureCategory.UNKNOWN),
+        )
+    ]
+
+    healed = SelfHealingAgent(StubAgent(original)).next_action(_task(), _obs(), trace)
+
+    assert healed.selector == "#missing"
+
+
+def test_returns_proposed_when_shape_changed_since_failure() -> None:
+    original = AgentAction.click("#missing")
+    proposed = AgentAction.type_text("alice", selector="#missing")
+
+    healed = SelfHealingAgent(StubAgent(proposed)).next_action(
+        _task(), _obs(), [_failed_step(original)]
+    )
+
+    assert healed == proposed
+
+
+def test_returns_proposed_for_terminal_or_unhealable_actions() -> None:
+    finish = AgentAction.finish("done")
+    wait = AgentAction.wait(50)
+
+    assert SelfHealingAgent(StubAgent(finish)).next_action(_task(), _obs(), []) == finish
+    assert SelfHealingAgent(StubAgent(wait)).next_action(_task(), _obs(), []) == wait
+
+
+def test_last_element_not_found_ignores_waits_and_stops_on_other_failures() -> None:
+    missing = _failed_step(AgentAction.click("#missing"))
+    wait_step = TraceStep(
+        index=1,
+        observation=_obs(),
+        action=AgentAction.wait(10),
+        result=ActionResult.ok(),
+    )
+    other_failure = TraceStep(
+        index=2,
+        observation=_obs(),
+        action=AgentAction.click("#other"),
+        result=ActionResult.failed("boom", category=FailureCategory.UNKNOWN),
+    )
+
+    assert SelfHealingAgent._last_element_not_found([missing, wait_step]) == missing  # noqa: SLF001
+    assert SelfHealingAgent._last_element_not_found([missing, other_failure]) is None  # noqa: SLF001
+
+
+def test_failed_selectors_collects_only_same_shape_missing_failures() -> None:
+    proposed = AgentAction.click("#missing")
+    trace = [
+        _failed_step(AgentAction.click("#missing")),
+        TraceStep(
+            index=1,
+            observation=_obs(),
+            action=AgentAction.click("#submit"),
+            result=ActionResult.failed("boom", category=FailureCategory.ELEMENT_NOT_FOUND),
+        ),
+        TraceStep(
+            index=2,
+            observation=_obs(),
+            action=AgentAction.type_text("alice", selector="#user"),
+            result=ActionResult.failed("boom", category=FailureCategory.ELEMENT_NOT_FOUND),
+        ),
+    ]
+
+    assert SelfHealingAgent._failed_selectors(trace, proposed) == {"#missing", "#submit"}  # noqa: SLF001
 
 
 def test_recovers_end_to_end_when_runner_allows_repair() -> None:
