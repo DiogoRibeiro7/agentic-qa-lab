@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from agentic_qa_lab.domain import AgentAction, FailureCategory
 from agentic_qa_lab.environments import SeleniumEnvironment
 
@@ -85,6 +87,38 @@ class FakeDriver:
         self.closed = True
 
 
+class BrokenAttrDriver(FakeDriver):
+    @property
+    def title(self) -> str:
+        raise RuntimeError("no title")
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._title = value
+
+    @property
+    def page_source(self) -> str:
+        raise RuntimeError("no source")
+
+    @page_source.setter
+    def page_source(self, value: str) -> None:
+        self._page_source = value
+
+
+class QuitFailsDriver(FakeDriver):
+    def quit(self) -> None:
+        self.closed = True
+        raise RuntimeError("quit failed")
+
+
+class BodyFailsDriver(FakeDriver):
+    def find_element(self, by: Any, value: str) -> FakeElement:
+        self.calls.append(("find_element", (by, value)))
+        if value == "body":
+            raise RuntimeError("body lookup failed")
+        return super().find_element(by, value)
+
+
 def test_open_returns_observation() -> None:
     driver = FakeDriver()
     env = SeleniumEnvironment(driver)
@@ -121,6 +155,13 @@ def test_execute_type_press_and_wait() -> None:
     assert driver.default.sent
 
 
+def test_active_element_returns_driver_active_element() -> None:
+    driver = FakeDriver()
+    env = SeleniumEnvironment(driver)
+
+    assert env._active_element() is driver.active  # noqa: SLF001
+
+
 def test_coordinate_click_uses_script() -> None:
     driver = FakeDriver()
     env = SeleniumEnvironment(driver)
@@ -149,6 +190,26 @@ def test_element_not_found_is_categorized() -> None:
     assert result.failure_category is FailureCategory.ELEMENT_NOT_FOUND
 
 
+def test_navigation_error_is_categorized() -> None:
+    driver = FakeDriver(element_exc=RuntimeError("navigation failed: invalid argument"))
+    env = SeleniumEnvironment(driver)
+
+    result = env.execute(AgentAction.click("#bad"))
+
+    assert not result.success
+    assert result.failure_category is FailureCategory.NAVIGATION_ERROR
+
+
+def test_unknown_error_is_categorized() -> None:
+    driver = FakeDriver(element_exc=RuntimeError("mystery failure"))
+    env = SeleniumEnvironment(driver)
+
+    result = env.execute(AgentAction.click("#bad"))
+
+    assert not result.success
+    assert result.failure_category is FailureCategory.UNKNOWN
+
+
 def test_terminal_actions_are_noops() -> None:
     driver = FakeDriver()
     env = SeleniumEnvironment(driver)
@@ -168,6 +229,26 @@ def test_screenshot_written_when_dir_set(tmp_path: Path) -> None:
     assert driver.saved
 
 
+def test_observe_handles_driver_metadata_failures() -> None:
+    driver = BrokenAttrDriver()
+    env = SeleniumEnvironment(driver)
+
+    obs = env.observe()
+
+    assert obs.title is None
+    assert obs.dom_snapshot is None
+    assert obs.visible_text == "visible text"
+
+
+def test_observe_handles_visible_text_failure() -> None:
+    driver = BodyFailsDriver()
+    env = SeleniumEnvironment(driver)
+
+    obs = env.observe()
+
+    assert obs.visible_text is None
+
+
 def test_context_manager_closes_driver() -> None:
     driver = FakeDriver()
     with SeleniumEnvironment(driver) as env:
@@ -181,3 +262,29 @@ def test_close_is_idempotent() -> None:
     env.close()
     env.close()
     assert driver.closed is True
+
+
+def test_close_suppresses_driver_quit_error() -> None:
+    driver = QuitFailsDriver()
+    env = SeleniumEnvironment(driver)
+
+    env.close()
+
+    assert driver.closed is True
+
+
+def test_map_key_falls_back_to_literal_when_keys_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = __import__
+
+    def fake_import(
+        name: str, globals: Any = None, locals: Any = None, fromlist: Any = (), level: int = 0
+    ) -> Any:
+        if name == "selenium.webdriver.common.keys":
+            raise ImportError("no selenium keys")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+
+    assert SeleniumEnvironment._map_key("Enter") == "Enter"  # noqa: SLF001
