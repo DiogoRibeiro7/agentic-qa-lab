@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import sys
+import types
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from agentic_qa_lab.domain import AgentAction, FailureCategory, TaskSpec
 from agentic_qa_lab.environments import AppiumEnvironment
@@ -84,6 +88,72 @@ class FakeDriver:
         self.closed = True
 
 
+class BrokenMetaDriver(FakeDriver):
+    @property
+    def title(self) -> str:
+        raise RuntimeError("no title")
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._title = value
+
+    @property
+    def page_source(self) -> str:
+        raise RuntimeError("no source")
+
+    @page_source.setter
+    def page_source(self, value: str) -> None:
+        self._page_source = value
+
+    @property
+    def current_url(self) -> str:
+        raise RuntimeError("no url")
+
+    @current_url.setter
+    def current_url(self, value: str) -> None:
+        self._current_url = value
+
+    @property
+    def current_package(self) -> str:
+        raise RuntimeError("no package")
+
+    @current_package.setter
+    def current_package(self, value: str) -> None:
+        self._current_package = value
+
+
+class FailingViewportDriver(FakeDriver):
+    def get_window_size(self) -> dict[str, int]:
+        raise RuntimeError("no viewport")
+
+
+class QuitFailsDriver(FakeDriver):
+    def quit(self) -> None:
+        self.closed = True
+        raise RuntimeError("quit failed")
+
+
+class FakeRemoteFactory:
+    def __init__(self) -> None:
+        self.driver = FakeDriver()
+        self.command_executor: str | None = None
+        self.options: Any = None
+
+    def __call__(self, command_executor: str, options: Any) -> FakeDriver:
+        self.command_executor = command_executor
+        self.options = options
+        return self.driver
+
+
+class FakeAppiumOptions:
+    def __init__(self) -> None:
+        self.loaded: dict[str, Any] | None = None
+
+    def load_capabilities(self, capabilities: dict[str, Any]) -> FakeAppiumOptions:
+        self.loaded = dict(capabilities)
+        return self
+
+
 def test_task_spec_allows_appium_start_url() -> None:
     task = TaskSpec(task_id="mobile", goal="Open app", start_url="appium://session")
     assert task.start_url == "appium://session"
@@ -108,6 +178,26 @@ def test_open_web_url_uses_get() -> None:
 
     assert obs.url == "https://example.com"
     assert ("get", ("https://example.com",)) in driver.calls
+
+
+def test_launch_builds_remote_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    remote = FakeRemoteFactory()
+    options = FakeAppiumOptions()
+    fake_webdriver = types.SimpleNamespace(Remote=remote)
+    fake_options_module = types.SimpleNamespace(AppiumOptions=lambda: options)
+
+    monkeypatch.setitem(sys.modules, "appium", types.SimpleNamespace(webdriver=fake_webdriver))
+    monkeypatch.setitem(sys.modules, "appium.options.common", fake_options_module)
+
+    env = AppiumEnvironment.launch(
+        command_executor="http://127.0.0.1:4725",
+        capabilities={"platformName": "Android"},
+        default_timeout_ms=1500,
+    )
+
+    assert remote.command_executor == "http://127.0.0.1:4725"
+    assert options.loaded == {"platformName": "Android"}
+    assert env._driver is remote.driver  # noqa: SLF001
 
 
 def test_execute_click_type_press_and_wait() -> None:
@@ -152,6 +242,26 @@ def test_element_not_found_is_categorized() -> None:
     assert result.failure_category is FailureCategory.ELEMENT_NOT_FOUND
 
 
+def test_navigation_error_is_categorized() -> None:
+    driver = FakeDriver(exc=RuntimeError("app activity navigation failed"))
+    env = AppiumEnvironment(driver)
+
+    result = env.execute(AgentAction.click("id=missing"))
+
+    assert not result.success
+    assert result.failure_category is FailureCategory.NAVIGATION_ERROR
+
+
+def test_unknown_error_is_categorized() -> None:
+    driver = FakeDriver(exc=RuntimeError("mystery failure"))
+    env = AppiumEnvironment(driver)
+
+    result = env.execute(AgentAction.click("id=missing"))
+
+    assert not result.success
+    assert result.failure_category is FailureCategory.UNKNOWN
+
+
 def test_terminal_actions_are_noops() -> None:
     driver = FakeDriver()
     env = AppiumEnvironment(driver)
@@ -171,8 +281,76 @@ def test_screenshot_written_when_dir_set(tmp_path: Path) -> None:
     assert driver.saved
 
 
+def test_observe_handles_best_effort_metadata_failures() -> None:
+    driver = BrokenMetaDriver()
+    env = AppiumEnvironment(driver)
+
+    obs = env.observe()
+
+    assert obs.url == "appium://session"
+    assert obs.title == ".MainActivity"
+    assert obs.dom_snapshot is None
+    assert obs.visible_text == "Visible text"
+
+
+def test_observe_falls_back_to_page_source_for_visible_text() -> None:
+    driver = FakeDriver()
+
+    def fail_mobile_source(script: str, payload: dict[str, str]) -> str:
+        raise RuntimeError("no mobile source")
+
+    driver.execute_script = fail_mobile_source  # type: ignore[assignment]
+    env = AppiumEnvironment(driver)
+
+    obs = env.observe()
+
+    assert obs.visible_text == "<hierarchy>visible text</hierarchy>"
+
+
+def test_observe_uses_none_when_viewport_unavailable() -> None:
+    driver = FailingViewportDriver()
+    env = AppiumEnvironment(driver)
+
+    obs = env.observe()
+
+    assert obs.viewport is None
+
+
 def test_context_manager_closes_driver() -> None:
     driver = FakeDriver()
     with AppiumEnvironment(driver) as env:
         env.observe()
     assert driver.closed is True
+
+
+def test_close_is_idempotent() -> None:
+    driver = FakeDriver()
+    env = AppiumEnvironment(driver)
+
+    env.close()
+    env.close()
+
+    assert driver.closed is True
+
+
+def test_close_suppresses_driver_quit_error() -> None:
+    driver = QuitFailsDriver()
+    env = AppiumEnvironment(driver)
+
+    env.close()
+
+    assert driver.closed is True
+
+
+@pytest.mark.parametrize(
+    ("selector", "expected"),
+    [
+        ("id=username", ("id", "username")),
+        ("xpath=//input[1]", ("xpath", "//input[1]")),
+        ("accessibility_id=login", ("accessibility id", "login")),
+        ("css=.btn", ("css selector", ".btn")),
+        ("plain-id", ("id", "plain-id")),
+    ],
+)
+def test_selector_strategy(selector: str, expected: tuple[str, str]) -> None:
+    assert AppiumEnvironment._selector_strategy(selector) == expected  # noqa: SLF001
