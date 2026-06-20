@@ -108,9 +108,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ **Dashboard upgrades.** The Streamlit dashboard now shows an execution
   queue, side-by-side run diffing, and a trace timeline with inline
   screenshots when files are available locally.
-- 🟡 **More environments.** Added `APIEnvironment` for non-UI HTTP flows and
-  `SeleniumEnvironment` as a second browser backend behind the same
-  `BrowserEnvironment` interface. Appium/mobile adapters are still pending.
+- ✅ **More environments.** Added `APIEnvironment` for non-UI HTTP flows,
+  `SeleniumEnvironment` as a second browser backend, and `AppiumEnvironment`
+  for mobile/native-app sessions behind the same `BrowserEnvironment`
+  interface.
 - ✅ **Self-healing selectors.** `SelfHealingAgent` now proposes DOM-derived
   replacement selectors (id/name/text/role) after `element_not_found`
   failures, and the CLI exposes it as `agentic-qa run --self-heal`.

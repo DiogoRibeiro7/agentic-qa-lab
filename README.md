@@ -75,8 +75,8 @@ Run the domain tests with `pytest tests/test_domain.py`.
 `agentic_qa_lab.environments` keeps all browser I/O behind the
 `BrowserEnvironment` interface so agents only ever speak in domain types.
 `PlaywrightEnvironment` is the reference browser adapter, and
-`SeleniumEnvironment` and `APIEnvironment` support alternative browser and
-non-UI flows through the same loop contract.
+`SeleniumEnvironment`, `AppiumEnvironment`, and `APIEnvironment` support
+alternative browser, mobile, and non-UI flows through the same loop contract.
 
 **`PlaywrightEnvironment`**:
 
@@ -104,6 +104,15 @@ non-UI flows through the same loop contract.
   structured `FailureCategory` mapping.
 - Can be launched lazily with Chromium via `SeleniumEnvironment.launch(...)` or
   injected with a fake driver for unit tests.
+
+**`AppiumEnvironment`**:
+
+- Wraps an Appium session behind the same `open` / `observe` / `execute`
+  contract for native-app or mobile-web testing.
+- Supports locator prefixes such as `id=...`, `accessibility_id=...`, and
+  `xpath=...`, plus coordinate taps and screenshots.
+- Accepts `appium://...` task start targets for native-app sessions where there
+  is no navigable browser URL.
 
 The adapter accepts an injected `page`, which makes it fully unit-testable with
 a fake — see `tests/test_environments.py` (no browser binaries required).

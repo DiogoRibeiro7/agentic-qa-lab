@@ -1,4 +1,4 @@
-"""Selenium-backed :class:`BrowserEnvironment` implementation."""
+"""Appium-backed :class:`BrowserEnvironment` implementation."""
 
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ from .base import BrowserEnvironment
 
 
 def _is_timeout_error(exc: BaseException) -> bool:
-    """Return ``True`` when ``exc`` looks like a Selenium timeout."""
+    """Return ``True`` when ``exc`` looks like an Appium timeout."""
     return type(exc).__name__ == "TimeoutException" or "timeout" in str(exc).lower()
 
 
-class SeleniumEnvironment(BrowserEnvironment):
-    """Drive a Selenium WebDriver as an agent environment."""
+class AppiumEnvironment(BrowserEnvironment):
+    """Drive an Appium session behind the shared browser environment contract."""
 
     def __init__(
         self,
@@ -31,7 +31,7 @@ class SeleniumEnvironment(BrowserEnvironment):
         *,
         screenshot_dir: Path | None = None,
         default_timeout_ms: int = 10_000,
-        viewport: tuple[int, int] = (1280, 720),
+        viewport: tuple[int, int] | None = None,
     ) -> None:
         self._driver = driver
         self._screenshot_dir = screenshot_dir
@@ -46,20 +46,18 @@ class SeleniumEnvironment(BrowserEnvironment):
     def launch(
         cls,
         *,
-        headless: bool = True,
+        command_executor: str = "http://127.0.0.1:4723",
+        capabilities: dict[str, Any] | None = None,
         screenshot_dir: Path | None = None,
         default_timeout_ms: int = 10_000,
-        viewport: tuple[int, int] = (1280, 720),
-    ) -> SeleniumEnvironment:
-        """Launch a Chromium WebDriver and wrap it as an environment."""
-        from selenium import webdriver
+        viewport: tuple[int, int] | None = None,
+    ) -> AppiumEnvironment:
+        """Start an Appium remote session and wrap it as an environment."""
+        from appium import webdriver
+        from appium.options.common import AppiumOptions
 
-        options = webdriver.ChromeOptions()
-        if headless:
-            options.add_argument("--headless=new")
-        options.add_argument(f"--window-size={viewport[0]},{viewport[1]}")
-        driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(default_timeout_ms / 1000.0)
+        options = AppiumOptions().load_capabilities(capabilities or {})
+        driver = webdriver.Remote(command_executor, options=options)
         with suppress(Exception):
             driver.implicitly_wait(default_timeout_ms / 1000.0)
         return cls(
@@ -70,12 +68,13 @@ class SeleniumEnvironment(BrowserEnvironment):
         )
 
     def open(self, url: str) -> Observation:
-        """Navigate to ``url`` and return the first observation."""
-        self._driver.get(url)
+        """Open a web URL or attach to the current native-app screen."""
+        if url.startswith(("http://", "https://", "file://", "about:")):
+            self._driver.get(url)
         return self.observe()
 
     def observe(self) -> Observation:
-        """Capture URL, title, DOM, visible text, and an optional screenshot."""
+        """Capture current page/app state, visible text, and an optional screenshot."""
         start = time.perf_counter()
         screenshot_path: str | None = None
         if self._screenshot_dir is not None:
@@ -85,19 +84,19 @@ class SeleniumEnvironment(BrowserEnvironment):
 
         observation = Observation(
             step=self._step,
-            url=str(self._driver.current_url),
+            url=self._current_target(),
             title=self._safe_title(),
             dom_snapshot=self._safe_page_source(),
             visible_text=self._safe_visible_text(),
             screenshot_path=screenshot_path,
             timestamp=time.time(),
             capture_ms=(time.perf_counter() - start) * 1000.0,
-            viewport=self._viewport,
+            viewport=self._viewport or self._safe_viewport(),
         )
         return observation
 
     def execute(self, action: AgentAction) -> ActionResult:
-        """Dispatch an action to Selenium and return a structured result."""
+        """Dispatch an action to Appium and return a structured result."""
         start = time.perf_counter()
         try:
             self._dispatch(action)
@@ -111,7 +110,7 @@ class SeleniumEnvironment(BrowserEnvironment):
         return ActionResult.ok(duration_ms=(time.perf_counter() - start) * 1000.0)
 
     def close(self) -> None:
-        """Quit the driver. Safe to call more than once."""
+        """Quit the Appium session. Safe to call repeatedly."""
         if self._closed:
             return
         self._closed = True
@@ -119,16 +118,12 @@ class SeleniumEnvironment(BrowserEnvironment):
             self._driver.quit()
 
     def _dispatch(self, action: AgentAction) -> None:
-        """Translate an :class:`AgentAction` into Selenium calls."""
+        """Translate an :class:`AgentAction` into Appium driver calls."""
         if action.type is ActionType.CLICK:
             if action.selector is not None:
                 self._find(action.selector).click()
                 return
-            self._driver.execute_script(
-                "document.elementFromPoint(arguments[0], arguments[1]).click();",
-                action.x,
-                action.y,
-            )
+            self._driver.tap([(action.x, action.y)])
             return
 
         if action.type is ActionType.TYPE_TEXT:
@@ -139,12 +134,8 @@ class SeleniumEnvironment(BrowserEnvironment):
             return
 
         if action.type is ActionType.PRESS_KEY:
-            target = (
-                self._find(action.selector)
-                if action.selector is not None
-                else self._active_element()
-            )
-            target.send_keys(self._map_key(action.key))
+            element = self._find(action.selector)
+            element.send_keys(action.key)
             return
 
         if action.type is ActionType.WAIT:
@@ -157,47 +148,74 @@ class SeleniumEnvironment(BrowserEnvironment):
         raise ValueError(f"Unsupported action type: {action.type}")
 
     def _find(self, selector: str) -> Any:
-        from selenium.webdriver.common.by import By
-
-        return self._driver.find_element(By.CSS_SELECTOR, selector)
-
-    def _active_element(self) -> Any:
-        return self._driver.switch_to.active_element
-
-    def _safe_title(self) -> str | None:
-        try:
-            return str(self._driver.title)
-        except Exception:  # noqa: BLE001
-            return None
-
-    def _safe_page_source(self) -> str | None:
-        try:
-            return str(self._driver.page_source)
-        except Exception:  # noqa: BLE001
-            return None
-
-    def _safe_visible_text(self) -> str | None:
-        try:
-            from selenium.webdriver.common.by import By
-
-            return str(self._driver.find_element(By.TAG_NAME, "body").text)
-        except Exception:  # noqa: BLE001
-            return None
+        by, value = self._selector_strategy(selector)
+        return self._driver.find_element(by, value)
 
     @staticmethod
-    def _map_key(key: str) -> Any:
-        """Map key names onto Selenium Keys constants when available."""
-        with suppress(Exception):
-            from selenium.webdriver.common.keys import Keys
+    def _selector_strategy(selector: str) -> tuple[str, str]:
+        """Map an agent selector string onto an Appium locator strategy."""
+        prefixes = {
+            "id=": "id",
+            "xpath=": "xpath",
+            "accessibility_id=": "accessibility id",
+            "css=": "css selector",
+        }
+        for prefix, strategy in prefixes.items():
+            if selector.startswith(prefix):
+                return strategy, selector[len(prefix) :]
+        return "id", selector
 
-            mapped = getattr(Keys, key.upper(), None)
-            if mapped is not None:
-                return mapped
-        return key
+    def _current_target(self) -> str:
+        try:
+            current_url = str(self._driver.current_url)
+            if current_url:
+                return current_url
+        except Exception:  # noqa: BLE001
+            pass
+        with suppress(Exception):
+            package = str(self._driver.current_package)
+            activity = str(getattr(self._driver, "current_activity", ""))
+            suffix = f"/{activity}" if activity else ""
+            return f"appium://{package}{suffix}"
+        return "appium://session"
+
+    def _safe_title(self) -> str | None:
+        with suppress(Exception):
+            title = str(self._driver.title)
+            return title or None
+        with suppress(Exception):
+            activity = str(getattr(self._driver, "current_activity", ""))
+            return activity or None
+        return None
+
+    def _safe_page_source(self) -> str | None:
+        with suppress(Exception):
+            return str(self._driver.page_source)
+        return None
+
+    def _safe_visible_text(self) -> str | None:
+        with suppress(Exception):
+            return str(
+                self._driver.execute_script(
+                    "mobile: source",
+                    {"format": "description"},
+                )
+            )
+        with suppress(Exception):
+            return str(self._driver.page_source)
+        return None
+
+    def _safe_viewport(self) -> tuple[int, int] | None:
+        with suppress(Exception):
+            size = self._driver.get_window_size()
+            width = int(size["width"])
+            height = int(size["height"])
+            return (width, height)
+        return None
 
     @staticmethod
     def _categorize(exc: BaseException) -> FailureCategory:
-        """Map Selenium exceptions onto the shared failure taxonomy."""
+        """Map Appium/WebDriver failures onto the shared taxonomy."""
         if _is_timeout_error(exc):
             return FailureCategory.TIMEOUT
         name = type(exc).__name__
@@ -206,6 +224,6 @@ class SeleniumEnvironment(BrowserEnvironment):
             return FailureCategory.ELEMENT_NOT_FOUND
         if "no such element" in message or "unable to locate element" in message:
             return FailureCategory.ELEMENT_NOT_FOUND
-        if "navigation" in message or "invalid argument" in message:
+        if "app" in message or "activity" in message or "navigation" in message:
             return FailureCategory.NAVIGATION_ERROR
         return FailureCategory.UNKNOWN

@@ -104,6 +104,17 @@ For a Selenium-backed browser adapter, use `SeleniumEnvironment` from
 `agentic_qa_lab.environments`. It mirrors the Playwright environment contract,
 including structured observations, screenshots, and shared failure taxonomy.
 
+## Appium environment
+
+For mobile or native-app automation, use `AppiumEnvironment` from
+`agentic_qa_lab.environments`.
+
+- Use `appium://...` as a task `start_url` for native-app sessions.
+- Use selectors such as `id=login_button`, `accessibility_id=Username`, or
+  `xpath=//android.widget.TextView[@text="Battery"]`.
+- `AppiumEnvironment.launch(...)` expects an Appium server plus desired
+  capabilities for the target device/session.
+
 ## Run a benchmark
 
 ```bash

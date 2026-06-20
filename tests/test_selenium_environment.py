@@ -7,15 +7,17 @@ from agentic_qa_lab.domain import AgentAction, FailureCategory
 from agentic_qa_lab.environments import SeleniumEnvironment
 
 
-class FakeTimeoutException(Exception):
+class FakeTimeoutError(Exception):
     """Stand-in mimicking Selenium TimeoutException by class name."""
 
 
-FakeTimeoutException.__name__ = "TimeoutException"
+FakeTimeoutError.__name__ = "TimeoutException"
 
 
 class FakeElement:
-    def __init__(self, *, text: str = "", raise_on: str | None = None, exc: Exception | None = None) -> None:
+    def __init__(
+        self, *, text: str = "", raise_on: str | None = None, exc: Exception | None = None
+    ) -> None:
         self.text = text
         self.raise_on = raise_on
         self.exc = exc or RuntimeError("boom")
@@ -128,7 +130,7 @@ def test_coordinate_click_uses_script() -> None:
 
 
 def test_timeout_is_categorized() -> None:
-    driver = FakeDriver(element_exc=FakeTimeoutException("timed out"))
+    driver = FakeDriver(element_exc=FakeTimeoutError("timed out"))
     env = SeleniumEnvironment(driver)
 
     result = env.execute(AgentAction.click("#missing"))

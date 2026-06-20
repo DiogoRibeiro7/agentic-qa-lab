@@ -48,7 +48,7 @@ class TaskSpec(BaseModel):
     @classmethod
     def _validate_url(cls, value: str) -> str:
         """Ensure ``start_url`` looks like a navigable target."""
-        allowed_prefixes = ("http://", "https://", "file://", "about:")
+        allowed_prefixes = ("http://", "https://", "file://", "about:", "appium://", "appium:")
         if not value.startswith(allowed_prefixes):
             raise ValueError("start_url must begin with one of: " + ", ".join(allowed_prefixes))
         return value
