@@ -247,6 +247,9 @@ agentic-qa run --task tasks/example_login.yaml --judge-success
 # Record a manual browser session into a reusable task file
 agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml
 
+# Record a login flow without storing the password in plaintext
+agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml --secret-field "#password=AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD"
+
 # Batch benchmark with summary CSV/JSON
 agentic-qa benchmark --tasks "tasks/*.yaml" --tasks "tasks/*.json" --out-dir artifacts/benchmark
 

@@ -157,6 +157,19 @@ def _load_capabilities(path: Path | None) -> dict[str, object]:
     return dict(data)
 
 
+def _parse_secret_fields(entries: list[str]) -> dict[str, str]:
+    """Parse ``selector=ENV_VAR`` mappings used by the recorder command."""
+    mappings: dict[str, str] = {}
+    for entry in entries:
+        selector, separator, env_name = entry.partition("=")
+        selector = selector.strip()
+        env_name = env_name.strip()
+        if not separator or not selector or not env_name:
+            raise ValueError("Secret field entries must use the form '<selector>=ENV_VAR_NAME'.")
+        mappings[selector] = env_name
+    return mappings
+
+
 def _console_approver(action: AgentAction) -> ApprovalDecision:
     """Approver that asks the operator to confirm a risky action on the console."""
     target = action.selector or (action.x, action.y)
@@ -282,6 +295,16 @@ def record(
     finish_reason: Annotated[
         str, typer.Option(help="Reason attached to the final recorded finish action.")
     ] = "recorded session complete",
+    secret_field: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--secret-field",
+            help=(
+                "Replace recorded text for a selector with {env: VAR}, "
+                "e.g. #password=APP_PASSWORD."
+            ),
+        ),
+    ] = None,
     max_steps: Annotated[int, typer.Option(help="Task max_steps safeguard.")] = 25,
     max_retries: Annotated[int, typer.Option(help="Task max_retries safeguard.")] = 2,
     timeout_seconds: Annotated[float, typer.Option(help="Task timeout_seconds safeguard.")] = 120.0,
@@ -307,6 +330,10 @@ def record(
     console.print(
         "Recording manual session. Interact with the browser, then press Enter here to save."
     )
+    try:
+        secret_fields = _parse_secret_fields(secret_field or [])
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--secret-field") from exc
 
     case = record_case(
         task,
@@ -316,13 +343,14 @@ def record(
             "Press Enter when the manual flow is complete", default="", show_default=False
         ),
     )
-    path = dump_case(case, out_file)
+    path = dump_case(case, out_file, text_env_overrides=secret_fields)
 
     table = Table(title=f"Recorded: {task.task_id}")
     table.add_column("field")
     table.add_column("value", justify="right")
     table.add_row("start_url", task.start_url)
     table.add_row("actions", str(len(case.plan)))
+    table.add_row("secret_fields", str(len(secret_fields)))
     table.add_row("output", str(path))
     console.print(table)
 

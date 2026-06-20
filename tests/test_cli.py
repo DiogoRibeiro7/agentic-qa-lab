@@ -13,6 +13,7 @@ from agentic_qa_lab.cli import (
     AgentKind,
     EnvironmentKind,
     _load_capabilities,
+    _parse_secret_fields,
     _resolve_environment_kind,
     app,
     build_agent,
@@ -173,6 +174,15 @@ def test_load_capabilities_rejects_bad_extension(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Unsupported capabilities"):
         _load_capabilities(path)
+
+
+def test_parse_secret_fields() -> None:
+    assert _parse_secret_fields(["#password=APP_PASSWORD"]) == {"#password": "APP_PASSWORD"}
+
+
+def test_parse_secret_fields_rejects_bad_entries() -> None:
+    with pytest.raises(ValueError, match="ENV_VAR_NAME"):
+        _parse_secret_fields(["#password"])
 
 
 def test_build_environment_uses_appium_launch(
@@ -447,6 +457,51 @@ def test_record_command_writes_task_file(monkeypatch: pytest.MonkeyPatch, tmp_pa
     text = out_file.read_text(encoding="utf-8")
     assert "task_id: rec-demo" in text
     assert "selector: '#submit'" in text or 'selector: "#submit"' in text
+
+
+def test_record_command_can_emit_env_refs_for_secret_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    out_file = tmp_path / "recorded.yaml"
+
+    def fake_record_case(
+        task: TaskSpec,
+        *,
+        finish_reason: str,
+        headless: bool,
+        wait_for_finish: Any,
+    ) -> BenchmarkCase:
+        return BenchmarkCase(
+            task=task,
+            plan=[
+                AgentAction.type_text("alice", selector="#username"),
+                AgentAction.type_text("super-secret", selector="#password"),
+                AgentAction.finish(finish_reason),
+            ],
+        )
+
+    monkeypatch.setattr("agentic_qa_lab.evaluation.record_case", fake_record_case)
+    result = runner.invoke(
+        app,
+        [
+            "record",
+            "--task-id",
+            "rec-demo",
+            "--goal",
+            "Submit the form",
+            "--start-url",
+            "https://e.com/",
+            "--out-file",
+            str(out_file),
+            "--secret-field",
+            "#password=AGENTIC_QA_PASSWORD",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    text = out_file.read_text(encoding="utf-8")
+    assert "AGENTIC_QA_PASSWORD" in text
+    assert "super-secret" not in text
 
 
 def test_cli_module_has_app() -> None:

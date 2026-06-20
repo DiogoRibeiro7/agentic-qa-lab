@@ -50,6 +50,7 @@ Capture a manual browser session into a reusable task file:
 
 ```bash
 agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml
+agentic-qa record --task-id example-login --goal "Log in" --start-url https://example.com/login --out-file tasks/example_login.yaml --secret-field "#password=AGENTIC_QA_EXAMPLE_LOGIN_PASSWORD"
 ```
 
 The recorder launches a browser, logs clicks, field edits, and supported key

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -88,14 +89,26 @@ def load_cases(patterns: list[str]) -> list[BenchmarkCase]:
     return sorted(cases, key=lambda c: c.task.task_id)
 
 
-def dump_case(case: BenchmarkCase, path: str | Path) -> Path:
-    """Write one :class:`BenchmarkCase` to YAML or JSON and return the path."""
+def dump_case(
+    case: BenchmarkCase,
+    path: str | Path,
+    *,
+    text_env_overrides: Mapping[str, str] | None = None,
+) -> Path:
+    """Write one :class:`BenchmarkCase` to YAML or JSON and return the path.
+
+    ``text_env_overrides`` maps ``type_text`` selectors to environment variable
+    names. Matching actions are serialized as ``text: {env: VAR_NAME}`` instead
+    of embedding literal text into the task file.
+    """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     raw = case.task.model_dump(mode="json")
     if case.plan:
-        raw["plan"] = [action.model_dump(mode="json", exclude_none=True) for action in case.plan]
+        raw["plan"] = [
+            _dump_action(action, text_env_overrides=text_env_overrides) for action in case.plan
+        ]
 
     if target.suffix.lower() in {".yaml", ".yml"}:
         text = yaml.safe_dump(raw, sort_keys=False, allow_unicode=False)
@@ -106,6 +119,21 @@ def dump_case(case: BenchmarkCase, path: str | Path) -> Path:
 
     target.write_text(text, encoding="utf-8")
     return target
+
+
+def _dump_action(
+    action: AgentAction, *, text_env_overrides: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Serialize one action, optionally replacing text payloads with env refs."""
+    raw = action.model_dump(mode="json", exclude_none=True)
+    if (
+        text_env_overrides
+        and action.type == "type_text"
+        and action.selector is not None
+        and action.selector in text_env_overrides
+    ):
+        raw["text"] = {"env": text_env_overrides[action.selector]}
+    return raw
 
 
 def _resolve_env_refs(value: Any, *, path: str) -> Any:
