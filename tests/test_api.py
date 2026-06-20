@@ -179,6 +179,41 @@ def test_list_executions_returns_records(tmp_path: Path) -> None:
         assert payload.json()[0]["execution_id"] == "exec-001"
 
 
+def test_run_store_get_trace_and_missing_run(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+    record = store.create(_run())
+
+    trace = store.get_trace(record.run_id)
+
+    assert len(trace) == 1
+    assert trace[0].action.selector == "#go"
+    with pytest.raises(KeyError):
+        store.get("missing")
+
+
+def test_run_store_list_skips_corrupt_and_unrelated_json(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs", id_factory=lambda: "run-001")
+    store.create(_run())
+    (tmp_path / "runs" / "broken.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "runs" / "other.json").write_text('{"hello":"world"}', encoding="utf-8")
+
+    listing = store.list()
+
+    assert len(listing) == 1
+    assert listing[0].run_id == "run-001"
+
+
+def test_run_store_list_is_sorted_by_run_id(tmp_path: Path) -> None:
+    ids = iter(["run-010", "run-002"])
+    store = RunStore(tmp_path / "runs", id_factory=lambda: next(ids))
+    store.create(_run(RunStatus.SUCCESS))
+    store.create(_run(RunStatus.TIMEOUT))
+
+    listing = store.list()
+
+    assert [row.run_id for row in listing] == ["run-002", "run-010"]
+
+
 def test_execute_run_request_accepts_environment_options(tmp_path: Path) -> None:
     caps = tmp_path / "caps.json"
     request = RunExecutionRequest(
